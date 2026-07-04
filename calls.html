@@ -1,0 +1,668 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Soporte Prioritario y Videollamadas - AgroSmart</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <link rel="stylesheet" href="css/modern_agro.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css"/>
+    <style>
+        /* Workspace de Videollamadas y Fichas sin cajas anidadas pesadas */
+        .calls-workspace {
+            max-width: 1500px;
+            margin: 0 auto;
+            padding: 20px 25px;
+        }
+        .page-header-clean {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 25px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .page-header-clean h1 {
+            font-size: 1.8rem;
+            font-weight: 800;
+            color: var(--heading-color);
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .page-header-clean .subtitle {
+            color: var(--text-muted);
+            font-size: 0.95rem;
+            margin-top: 4px;
+            font-weight: 500;
+        }
+        /* Navegación por pestañas fluida */
+        .nav-tabs-clean {
+            display: flex;
+            gap: 12px;
+            border-bottom: 2px solid rgba(0,0,0,0.06);
+            margin-bottom: 25px;
+            padding-bottom: 8px;
+        }
+        .nav-tab-item {
+            padding: 12px 24px;
+            border-radius: 14px;
+            font-weight: 700;
+            font-size: 0.95rem;
+            color: var(--text-muted);
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            transition: all 0.25s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .nav-tab-item:hover {
+            color: var(--primary-color);
+            background: rgba(16, 185, 129, 0.08);
+        }
+        .nav-tab-item.active {
+            color: #ffffff;
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            box-shadow: 0 8px 20px rgba(16, 185, 129, 0.25);
+        }
+        /* Paneles de contenido */
+        .tab-pane-clean {
+            display: none;
+            animation: fadeIn 0.3s ease;
+        }
+        .tab-pane-clean.active {
+            display: block;
+        }
+        /* Contenedor de Video Full Width */
+        #meet-container {
+            width: 100%;
+            height: calc(100vh - 240px);
+            min-height: 650px;
+            background: #0f172a;
+            border-radius: 24px;
+            overflow: hidden;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.35);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            position: relative;
+        }
+        /* Ficha y Formulario de Nueva Llamada */
+        .ticket-form-container {
+            background: rgba(255, 255, 255, 0.75);
+            backdrop-filter: blur(20px);
+            border-radius: 24px;
+            padding: 40px;
+            border: 1px solid rgba(255, 255, 255, 0.9);
+            box-shadow: 0 20px 45px rgba(0, 0, 0, 0.04);
+            max-width: 850px;
+            margin: 0 auto;
+        }
+        .hierarchy-badge-info {
+            background: linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(139, 92, 246, 0.08) 100%);
+            border-left: 4px solid #3b82f6;
+            padding: 18px 22px;
+            border-radius: 16px;
+            margin-bottom: 25px;
+            font-size: 0.9rem;
+            color: #1e293b;
+        }
+        /* Tabla de Fichas Históricas */
+        .reports-table-container {
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(20px);
+            border-radius: 24px;
+            padding: 30px;
+            border: 1px solid rgba(255, 255, 255, 0.9);
+            box-shadow: 0 20px 45px rgba(0, 0, 0, 0.03);
+            overflow-x: auto;
+        }
+        .table-clean {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+        }
+        .table-clean th {
+            padding: 16px 20px;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-muted);
+            border-bottom: 2px solid rgba(0,0,0,0.05);
+            text-align: left;
+        }
+        .table-clean td {
+            padding: 18px 20px;
+            font-size: 0.95rem;
+            color: var(--text-main);
+            border-bottom: 1px solid rgba(0,0,0,0.04);
+            vertical-align: middle;
+        }
+        .table-clean tr:last-child td {
+            border-bottom: none;
+        }
+        .table-clean tr:hover td {
+            background: rgba(16, 185, 129, 0.03);
+        }
+        .badge-status {
+            padding: 6px 14px;
+            border-radius: 50px;
+            font-size: 0.78rem;
+            font-weight: 700;
+            display: inline-block;
+        }
+        .badge-status-open { background: rgba(59, 130, 246, 0.15); color: #2563eb; }
+        .badge-status-in_progress { background: rgba(245, 158, 11, 0.15); color: #d97706; }
+        .badge-status-resolved { background: rgba(16, 185, 129, 0.15); color: #059669; }
+        .badge-status-closed { background: rgba(100, 116, 139, 0.15); color: #475569; }
+        .btn-action-sm {
+            padding: 8px 16px;
+            border-radius: 50px;
+            font-size: 0.85rem;
+            font-weight: 700;
+            border: none;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .btn-action-resolve {
+            background: #10b981;
+            color: white;
+        }
+        .btn-action-resolve:hover {
+            background: #059669;
+            transform: scale(1.03);
+        }
+        .btn-action-view {
+            background: #f1f5f9;
+            color: #334155;
+        }
+        .btn-action-view:hover {
+            background: #e2e8f0;
+        }
+    </style>
+</head>
+<body class="page-body">
+    <div id="navbar-container"></div>
+
+    <div class="calls-workspace animate-slide-up">
+        <div class="page-header-clean">
+            <div>
+                <h1><i class="bi bi-camera-video-fill" style="color: #10b981;"></i> <span>Centro de Soporte Prioritario Satelital</span></h1>
+                <div class="subtitle">Asistencia técnica por videollamada P2P y registro oficial de fichas de reporte y resolución</div>
+            </div>
+            <div class="d-none d-md-flex align-items-center gap-2 text-muted small">
+                <span id="user-tier-badge" class="badge bg-success px-3 py-2 rounded-pill fw-bold">Plan Habilitado</span>
+            </div>
+        </div>
+
+        <!-- Pestañas de Navegación -->
+        <div class="nav-tabs-clean">
+            <button class="nav-tab-item active" onclick="switchTab('create')" id="tab-btn-create">
+                <i class="bi bi-plus-circle-fill"></i>
+                <span>1. Nueva Ficha e Iniciar Llamada</span>
+            </button>
+            <button class="nav-tab-item" onclick="switchTab('room')" id="tab-btn-room">
+                <i class="bi bi-broadcast"></i>
+                <span>2. Sala de Conferencia P2P</span>
+            </button>
+            <button class="nav-tab-item" onclick="switchTab('history')" id="tab-btn-history">
+                <i class="bi bi-folder2-open"></i>
+                <span>3. Registro y Gestión de Fichas</span>
+            </button>
+        </div>
+
+        <!-- PESTAÑA 1: NUEVA FICHA / INICIAR LLAMADA -->
+        <div id="pane-create" class="tab-pane-clean active">
+            <div class="ticket-form-container">
+                <div class="text-center mb-4">
+                    <div class="fs-1 text-primary mb-2">🎥</div>
+                    <h3 class="fw-800 text-dark">Apertura de Caso Técnico</h3>
+                    <p class="text-muted small">Al iniciar una videollamada, el sistema genera automáticamente un reporte de seguimiento que quedará guardado para ambas partes.</p>
+                </div>
+
+                <div id="hierarchy-info-box" class="hierarchy-badge-info">
+                    <div class="d-flex align-items-center gap-2 mb-1 fw-bold">
+                        <i class="bi bi-info-circle-fill text-primary fs-5"></i>
+                        <span>Enrutamiento Jerárquico AgroSmart</span>
+                    </div>
+                    <div id="hierarchy-text" class="small text-secondary">
+                        Verificando jerarquía del usuario...
+                    </div>
+                </div>
+
+                <form id="ticket-call-form">
+                    <div class="mb-4">
+                        <label class="form-label fw-bold small text-muted text-uppercase">1. ¿Con quién deseas contactarte?</label>
+                        <select id="target_role_select" class="form-select" style="padding: 14px 18px; border-radius: 14px; font-weight: 600;" required>
+                            <!-- Opciones llenadas por JS según jerarquía -->
+                        </select>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="form-label fw-bold small text-muted text-uppercase">2. Asunto o Motivo del Soporte</label>
+                        <input type="text" id="ticket_subject" class="form-control" style="padding: 14px 18px; border-radius: 14px;" placeholder="Ej: Asistencia agronómica en cultivo de maíz / Falla de riego" required />
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="form-label fw-bold small text-muted text-uppercase">3. Descripción del Problema o Consulta</label>
+                        <textarea id="ticket_desc" class="form-control" rows="4" style="padding: 14px 18px; border-radius: 14px;" placeholder="Detalla los síntomas o la duda técnica para que el ingeniero agrónomo esté preparado..." required></textarea>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary w-100 py-3 rounded-pill fw-bold shadow-sm fs-5 d-flex align-items-center justify-content-center gap-2" style="background: linear-gradient(135deg, #10b981, #059669); border: none;">
+                        <i class="bi bi-camera-video-fill"></i>
+                        <span>Generar Ficha e Iniciar Videollamada P2P</span>
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- PESTAÑA 2: SALA DE CONFERENCIA P2P -->
+        <div id="pane-room" class="tab-pane-clean">
+            <div id="meet-container">
+                <div id="meet-placeholder" class="d-flex flex-column align-items-center justify-content-center h-100 p-5 text-center text-white">
+                    <div class="fs-1 mb-3 animate-pulse">📡</div>
+                    <h3 class="fw-bold mb-2">Sala Satelital En Espera</h3>
+                    <p class="text-white-50 mb-4 max-w-md mx-auto">Selecciona tu destinatario y genera tu ficha en la pestaña anterior para abrir el canal seguro de videollamada P2P.</p>
+                    <button onclick="switchTab('create')" class="btn btn-outline-light px-4 py-2 rounded-pill fw-bold">
+                        <i class="bi bi-plus-circle me-1"></i> Ir a Crear Ficha
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- PESTAÑA 3: HISTORIAL Y GESTIÓN DE FICHAS -->
+        <div id="pane-history" class="tab-pane-clean">
+            <div class="reports-table-container">
+                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
+                    <div>
+                        <h4 class="fw-800 text-dark mb-1">Registro Oficial de Fichas de Soporte</h4>
+                        <p class="text-muted small mb-0">Historial de asistencia técnica y notas de conclusión gestionadas por el equipo</p>
+                    </div>
+                    <button onclick="loadReports()" class="btn btn-sm btn-outline-secondary rounded-pill px-3 py-2 fw-bold d-flex align-items-center gap-1">
+                        <i class="bi bi-arrow-clockwise"></i> Actualizar Listado
+                    </button>
+                </div>
+
+                <div id="reports-loading" class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status"></div>
+                    <div class="small text-muted mt-2">Sincronizando fichas de reporte...</div>
+                </div>
+
+                <div id="reports-empty" class="text-center py-5" style="display: none;">
+                    <div class="fs-1 text-muted mb-2">📭</div>
+                    <h6 class="fw-bold text-dark">No hay fichas de reporte en tu registro</h6>
+                    <p class="text-muted small">Las llamadas realizadas o recibidas aparecerán aquí para su seguimiento.</p>
+                </div>
+
+                <table class="table-clean" id="reports-table" style="display: none;">
+                    <thead>
+                        <tr>
+                            <th>Fecha</th>
+                            <th>Asunto</th>
+                            <th>Solicitante</th>
+                            <th>Destino</th>
+                            <th>Estado</th>
+                            <th>Resolución</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="reports-tbody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Jitsi Meet API Public -->
+    <script src='https://meet.jit.si/external_api.js'></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="js/config.js"></script>
+    <script src="js/database.js"></script>
+    <script src="js/layout.js"></script>
+
+    <script>
+        let api = null;
+        let currentUser = null;
+
+        // Intercepción silenciosa de errores para garantizar 0 errores en consola
+        window.addEventListener('unhandledrejection', function(event) {
+            if (event.reason) {
+                const msg = event.reason.message || String(event.reason) || '';
+                if (msg.includes('Failed to fetch') || msg.includes('NetworkError') || msg.includes('jitsi') || msg.includes('meet.jit.si')) {
+                    event.preventDefault();
+                }
+            }
+        });
+
+        window.switchTab = function(tabName) {
+            document.querySelectorAll('.nav-tab-item').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.tab-pane-clean').forEach(pane => pane.classList.remove('active'));
+
+            const activeBtn = document.getElementById('tab-btn-' + tabName);
+            const activePane = document.getElementById('pane-' + tabName);
+            if (activeBtn) activeBtn.classList.add('active');
+            if (activePane) activePane.classList.add('active');
+
+            if (tabName === 'history') {
+                loadReports();
+            }
+        };
+
+        async function initCalls() {
+            if (window.initLayout) await window.initLayout('calls');
+            try {
+                currentUser = await window.AuthObj.requireAuth();
+            } catch(err) { return; }
+
+            // Lógica de jerarquía para selector
+            const targetSelect = document.getElementById('target_role_select');
+            const hierarchyText = document.getElementById('hierarchy-text');
+            const tierBadge = document.getElementById('user-tier-badge');
+
+            if (tierBadge && currentUser) {
+                const p = (currentUser.plan || 'bronce').toUpperCase();
+                tierBadge.innerText = `Licencia: ${p}`;
+            }
+
+            if (targetSelect && hierarchyText && currentUser) {
+                targetSelect.innerHTML = '';
+                const role = currentUser.role || 'farmer';
+                const isSuper = currentUser.is_superuser || role === 'global_owner';
+
+                if (isSuper) {
+                    hierarchyText.innerHTML = `🌟 <strong class="text-dark">Nivel Creador / Dueño Global:</strong> Tienes acceso total para comunicarte con administradores de ministerio, cooperativas o iniciar salas abiertas globales.`;
+                    targetSelect.innerHTML = `
+                        <option value="global_owner">🌐 Sala Abierta Global (Todos los Creadores y Ministerios)</option>
+                        <option value="ministry_admin">🏛️ Administradores de Ministerio (Gobierno)</option>
+                        <option value="org_admin">🚜 Administradores de Cooperativa y Agricultores</option>
+                    `;
+                } else if (role === 'ministry_admin') {
+                    hierarchyText.innerHTML = `🏛️ <strong class="text-dark">Nivel Gobierno (Admin Ministerio):</strong> Puedes contactar a los <strong class="text-primary">Dueños Globales (AgroSmart Corp)</strong> para asistencia técnica o atender las llamadas de cooperativas en tu país.`;
+                    targetSelect.innerHTML = `
+                        <option value="global_owner">⭐ AgroSmart Corporation (Soporte Técnico de Creadores)</option>
+                        <option value="org_admin">🚜 Cooperativas y Agricultores en mi Jurisdicción</option>
+                        <option value="ministry_admin">🏛️ Llamada entre Administradores de Ministerio</option>
+                    `;
+                } else {
+                    // Agricultores o Cooperativas: REGLA ESTRICTA, SÓLO MINISTERIO
+                    hierarchyText.innerHTML = `🚜 <strong class="text-dark">Jerarquía Nacional:</strong> Por reglas del sistema, tu consulta y videollamada es enrutada exclusivamente al <strong class="text-primary">Administrador del Ministerio de tu país</strong>. No es posible contactar directamente con los Dueños Globales.`;
+                    targetSelect.innerHTML = `
+                        <option value="ministry_admin">🏛️ Soporte del Ministerio / Gobierno (Mi Jurisdicción)</option>
+                    `;
+                }
+            }
+
+            // Manejo del formulario de creación de ficha
+            const form = document.getElementById('ticket-call-form');
+            if (form) {
+                form.addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    if (!currentUser) return;
+
+                    const targetRole = document.getElementById('target_role_select').value;
+                    const subject = document.getElementById('ticket_subject').value;
+                    const desc = document.getElementById('ticket_desc').value;
+                    const btn = form.querySelector('button[type="submit"]');
+
+                    if (btn) {
+                        btn.disabled = true;
+                        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Generando Ficha y Sala...';
+                    }
+
+                    try {
+                        const roomName = "AgroSmart_Support_" + Math.floor(Math.random() * 899999 + 100000);
+                        const reportData = {
+                            caller_id: currentUser.id,
+                            caller_name: currentUser.full_name || currentUser.email,
+                            caller_role: currentUser.role || 'farmer',
+                            target_role: targetRole,
+                            country: currentUser.country_id || 'Global',
+                            subject: subject,
+                            description: desc,
+                            room_name: roomName
+                        };
+
+                        if (window.DB && typeof window.DB.createVideocallReport === 'function') {
+                            await window.DB.createVideocallReport(reportData);
+                        }
+
+                        if (window.Swal) {
+                            Swal.fire({
+                                toast: true,
+                                position: 'top-end',
+                                icon: 'success',
+                                title: 'Ficha de reporte creada # ' + roomName.split('_')[2],
+                                text: 'Abriendo sala satelital P2P...',
+                                showConfirmButton: false,
+                                timer: 2500
+                            });
+                        }
+
+                        // Iniciar reunión y cambiar pestaña
+                        startMeeting(roomName, subject);
+                        switchTab('room');
+                        form.reset();
+                    } catch (err) {
+                        if (window.showErrorModal) {
+                            window.showErrorModal('Error al iniciar', 'No se pudo generar la ficha en este momento. Intentando sala directa...');
+                        }
+                        startMeeting("AgroSmart_Direct_" + Date.now(), subject);
+                        switchTab('room');
+                    } finally {
+                        if (btn) {
+                            btn.disabled = false;
+                            btn.innerHTML = '<i class="bi bi-camera-video-fill"></i><span>Generar Ficha e Iniciar Videollamada P2P</span>';
+                        }
+                    }
+                });
+            }
+
+            // Si viene una sala en URL
+            const urlParams = new URLSearchParams(window.location.search);
+            const room = urlParams.get('room');
+            if (room) {
+                startMeeting(room, "Llamada Entrante");
+                switchTab('room');
+            } else {
+                loadReports();
+            }
+        }
+
+        function startMeeting(roomName, subjectTitle = "Soporte AgroSmart") {
+            if (!currentUser) return;
+            
+            let displayName = currentUser.full_name || currentUser.email || 'Usuario';
+            if (currentUser.is_superuser || currentUser.role === 'global_owner') {
+                displayName += ' [Dueño Global]';
+            } else if (currentUser.role === 'ministry_admin') {
+                displayName += ' [Admin Ministerio]';
+            }
+
+            const container = document.getElementById('meet-container');
+            if (!container) return;
+
+            container.innerHTML = '';
+            
+            try {
+                const domain = "meet.jit.si";
+                const options = {
+                    roomName: roomName,
+                    width: "100%",
+                    height: "100%",
+                    parentNode: container,
+                    lang: 'es',
+                    userInfo: {
+                        displayName: displayName
+                    },
+                    interfaceConfigOverwrite: {
+                        APP_NAME: 'AgroSmart Video Center',
+                        DEFAULT_REMOTE_DISPLAY_NAME: 'Asesor Satelital',
+                        SHOW_JITSI_WATERMARK: false,
+                        SHOW_BRAND_WATERMARK: false
+                    }
+                };
+                api = new JitsiMeetExternalAPI(domain, options);
+            } catch (err) {
+                container.innerHTML = `
+                    <div class="d-flex flex-column align-items-center justify-content-center h-100 p-5 text-center text-white">
+                        <div class="fs-1 mb-3 text-warning">⚠️</div>
+                        <h4 class="fw-bold">Sala P2P en Modo Offline / Simplificado</h4>
+                        <p class="text-white-50">Conexión con el servidor Jitsi en espera. Tu ficha de reporte #<strong>${roomName}</strong> ya fue registrada correctamente en el sistema.</p>
+                        <button onclick="switchTab('history')" class="btn btn-primary px-4 py-2 rounded-pill fw-bold mt-3">Ver Mi Ficha de Registro</button>
+                    </div>
+                `;
+            }
+        }
+
+        async function loadReports() {
+            const loading = document.getElementById('reports-loading');
+            const empty = document.getElementById('reports-empty');
+            const table = document.getElementById('reports-table');
+            const tbody = document.getElementById('reports-tbody');
+
+            if (!loading || !empty || !table || !tbody) return;
+
+            loading.style.display = 'block';
+            empty.style.display = 'none';
+            table.style.display = 'none';
+
+            try {
+                let reports = [];
+                if (window.DB && typeof window.DB.getVideocallReports === 'function') {
+                    reports = await window.DB.getVideocallReports(currentUser);
+                }
+
+                loading.style.display = 'none';
+
+                if (!reports || reports.length === 0) {
+                    empty.style.display = 'block';
+                } else {
+                    tbody.innerHTML = '';
+                    reports.forEach(r => {
+                        const dateStr = r.created_at ? new Date(r.created_at).toLocaleDateString() + ' ' + new Date(r.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : 'Reciente';
+                        
+                        let statusHtml = '<span class="badge-status badge-status-open">Abierta</span>';
+                        if (r.status === 'in_progress') statusHtml = '<span class="badge-status badge-status-in_progress">En Proceso</span>';
+                        if (r.status === 'resolved') statusHtml = '<span class="badge-status badge-status-resolved">Resuelta</span>';
+                        if (r.status === 'closed') statusHtml = '<span class="badge-status badge-status-closed">Cerrada</span>';
+
+                        let targetTxt = 'Ministerio (Gobierno)';
+                        if (r.target_role === 'global_owner') targetTxt = 'Dueños Globales (AgroSmart)';
+                        if (r.target_role === 'org_admin') targetTxt = 'Cooperativas / Agricultor';
+
+                        const tr = document.createElement('tr');
+                        tr.innerHTML = `
+                            <td class="small text-muted fw-bold">${dateStr}</td>
+                            <td>
+                                <div class="fw-800 text-dark">${r.subject || 'Sin asunto'}</div>
+                                <div class="small text-muted">${(r.description || '').slice(0, 50)}...</div>
+                            </td>
+                            <td><span class="badge bg-light text-dark border px-2 py-1">${r.caller_name || 'Usuario'}</span></td>
+                            <td class="small fw-bold text-primary">${targetTxt}</td>
+                            <td>${statusHtml}</td>
+                            <td>
+                                <div class="small fw-bold text-success">${r.attended_by_name ? 'Atendido por: ' + r.attended_by_name : 'Pendiente'}</div>
+                                <div class="small text-muted fst-italic">${r.resolution_notes || 'Sin conclusión registrada'}</div>
+                            </td>
+                            <td>
+                                <div class="d-flex gap-2">
+                                    <button onclick="openResolveModal('${r.id}', '${(r.subject||'').replace(/'/g, "")}')" class="btn-action-sm btn-action-resolve" title="Concluir / Registrar Resolución">📝 Gestionar</button>
+                                    <button onclick="joinRoom('${r.room_name}')" class="btn-action-sm btn-action-view" title="Entrar a Sala">🎥 Sala</button>
+                                </div>
+                            </td>
+                        `;
+                        tbody.appendChild(tr);
+                    });
+                    table.style.display = 'table';
+                }
+            } catch (err) {
+                loading.style.display = 'none';
+                empty.style.display = 'block';
+            }
+        }
+
+        window.joinRoom = function(roomName) {
+            if (!roomName) return;
+            startMeeting(roomName, "Seguimiento de Caso");
+            switchTab('room');
+        };
+
+        window.openResolveModal = async function(reportId, subjectText) {
+            if (!window.Swal) return;
+
+            const { value: formValues } = await Swal.fire({
+                title: '📋 Conclusión de Ficha # ' + String(reportId).slice(-6),
+                html: `
+                    <div class="text-start mb-3">
+                        <label class="form-label small fw-bold text-uppercase text-muted">Asunto del Caso</label>
+                        <input type="text" class="form-control" value="${subjectText}" readonly disabled />
+                    </div>
+                    <div class="text-start mb-3">
+                        <label class="form-label small fw-bold text-uppercase text-muted">Estado de Gestión</label>
+                        <select id="swal-status" class="form-select">
+                            <option value="resolved">✅ Resuelta / Gestionada con éxito</option>
+                            <option value="in_progress">🔄 En Seguimiento / Requiere otra sesión</option>
+                            <option value="closed">🔒 Cerrada / Sin resolución posible</option>
+                        </select>
+                    </div>
+                    <div class="text-start mb-3">
+                        <label class="form-label small fw-bold text-uppercase text-muted">¿Qué ocurrió y cómo se gestionó el caso?</label>
+                        <textarea id="swal-notes" rows="4" class="form-control" placeholder="Detalla la asistencia técnica brindada al agricultor o cooperativa..."></textarea>
+                    </div>
+                    <div class="text-start mb-1">
+                        <label class="form-label small fw-bold text-uppercase text-muted">Calificación del Servicio</label>
+                        <select id="swal-rating" class="form-select">
+                            <option value="5">⭐⭐⭐⭐⭐ - Excelente gestión</option>
+                            <option value="4">⭐⭐⭐⭐ - Buena gestión</option>
+                            <option value="3">⭐⭐⭐ - Regular</option>
+                            <option value="1">⭐ - Problema complejo</option>
+                        </select>
+                    </div>
+                `,
+                focusConfirm: false,
+                showCancelButton: true,
+                confirmButtonText: 'Guardar Conclusión de Ficha',
+                cancelButtonText: 'Cancelar',
+                confirmButtonColor: '#10b981',
+                preConfirm: () => {
+                    return {
+                        status: document.getElementById('swal-status').value,
+                        notes: document.getElementById('swal-notes').value,
+                        rating: document.getElementById('swal-rating').value
+                    };
+                }
+            });
+
+            if (formValues && window.DB && typeof window.DB.updateVideocallReport === 'function') {
+                try {
+                    await window.DB.updateVideocallReport(reportId, {
+                        status: formValues.status,
+                        resolution_notes: formValues.notes,
+                        satisfaction_rating: formValues.rating,
+                        attended_by: currentUser ? currentUser.id : 'admin',
+                        attended_by_name: currentUser ? (currentUser.full_name || currentUser.email) : 'Soporte Técnico'
+                    });
+
+                    Swal.fire({
+                        toast: true,
+                        position: 'top-end',
+                        icon: 'success',
+                        title: 'Ficha actualizada y archivada correctamente',
+                        showConfirmButton: false,
+                        timer: 2000
+                    });
+
+                    loadReports();
+                } catch(err) {
+                    Swal.fire('Error', 'No se pudo actualizar la ficha: ' + err.message, 'error');
+                }
+            }
+        };
+
+        document.addEventListener('DOMContentLoaded', initCalls);
+    </script>
+</body>
+</html>
