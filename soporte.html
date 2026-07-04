@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Soporte y Actualizaciones - AgroSmart</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="css/modern_agro.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <style>
+        .timeline-wrapper {
+            position: relative;
+            width: 100%;
+            margin-top: 20px;
+        }
+        
+        .timeline-horizontal-container {
+            display: flex;
+            overflow-x: auto;
+            scroll-snap-type: x mandatory;
+            padding: 20px 20px 60px 20px;
+            gap: 30px;
+            scrollbar-width: thin;
+            scrollbar-color: var(--primary-color) rgba(0,0,0,0.05);
+        }
+
+        .timeline-horizontal-container::-webkit-scrollbar {
+            height: 12px;
+        }
+        .timeline-horizontal-container::-webkit-scrollbar-track {
+            background: rgba(0,0,0,0.05);
+            border-radius: 10px;
+        }
+        .timeline-horizontal-container::-webkit-scrollbar-thumb {
+            background-color: var(--primary-color);
+            border-radius: 10px;
+            border: 3px solid rgba(255,255,255,0.8);
+        }
+
+        .timeline-card {
+            min-width: 420px;
+            max-width: 420px;
+            scroll-snap-align: center;
+            background: var(--card-bg);
+            backdrop-filter: var(--glass-blur);
+            border: 1px solid var(--border-color);
+            border-radius: 24px;
+            padding: 30px;
+            box-shadow: var(--box-shadow);
+            transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+            flex-shrink: 0;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .timeline-card:hover {
+            transform: translateY(-12px);
+            box-shadow: 0 30px 60px -15px rgba(16, 185, 129, 0.25);
+            border-color: rgba(16, 185, 129, 0.5);
+        }
+
+        .team-collage {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .team-collage img {
+            width: 100%;
+            aspect-ratio: 1;
+            object-fit: cover;
+            border-radius: 12px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease;
+        }
+
+        .team-collage img:hover {
+            transform: scale(1.05);
+            z-index: 2;
+            position: relative;
+        }
+
+        .system-mockup {
+            width: 100%;
+            height: 240px;
+            object-fit: cover;
+            border-radius: 16px;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.15);
+            transition: transform 0.4s ease;
+        }
+
+        .timeline-card:hover .system-mockup {
+            transform: scale(1.02);
+        }
+
+        .version-tag {
+            display: inline-block;
+            padding: 8px 16px;
+            background: rgba(16, 185, 129, 0.15);
+            color: var(--primary-color);
+            border-radius: 50px;
+            font-weight: 800;
+            font-size: 0.9rem;
+            margin-bottom: 15px;
+            align-self: flex-start;
+        }
+
+        .timeline-connector {
+            position: absolute;
+            top: 50%;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, rgba(16, 185, 129, 0.1), rgba(16, 185, 129, 0.5), rgba(16, 185, 129, 0.1));
+            z-index: -1;
+            transform: translateY(-50%);
+            display: none; /* Can be enabled if desired, but cards look cleaner without line */
+        }
+
+        .scroll-hint {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            color: var(--text-muted);
+            margin-bottom: 10px;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 0.5; transform: translateX(0); }
+            50% { opacity: 1; transform: translateX(5px); }
+            100% { opacity: 0.5; transform: translateX(0); }
+        }
+
+        @media (max-width: 768px) {
+            .timeline-card {
+                min-width: 320px;
+                max-width: 320px;
+                padding: 20px;
+            }
+            .system-mockup {
+                height: 180px;
+            }
+        }
+    </style>
+</head>
+<body class="page-body">
+    <div id="navbar-container"></div>
+
+    <section class="hero-dashboard animate-slide-up" style="padding: 80px 0; border-radius: 0 0 40px 40px; margin-bottom: 20px;">
+        <div class="container text-center py-4">
+            <div class="hero-badge animate__animated animate__fadeInDown">
+                <span class="badge rounded-pill bg-success-soft px-3 py-2 text-uppercase fw-bold text-white" style="color: #ffffff !important; font-weight: 900 !important;">Registro del Sistema</span>
+            </div>
+            <h1 class="display-4 fw-800 text-white mb-3 animate__animated animate__fadeInUp">Evolución AgroSmart</h1>
+            <p class="lead text-white opacity-90 mx-auto mb-4 animate__animated animate__fadeInUp animate__delay-1s" style="max-width: 700px;">
+                Actualizado a: <strong style="color: #ffd700;">Junio 2026</strong>
+            </p>
+            <p class="text-white opacity-75 mx-auto animate__animated animate__fadeInUp animate__delay-1s" style="max-width: 800px; font-size: 1.1rem;">
+                Desliza para explorar la historia tecnológica de AgroSmart. Desde que los 6 fundadores tuvimos la idea, hasta convertirnos en la plataforma integral de mapas 3D, videollamadas, redes sociales e Inteligencia Artificial para el agro moderno.
+            </p>
+        </div>
+    </section>
+
+    <div class="container mb-5 mt-4">
+        <div class="card border-0 shadow-lg rounded-4 p-4 text-white" style="background: linear-gradient(135deg, #10b981 0%, #047857 100%);">
+            <div class="row align-items-center">
+                <div class="col-md-8 mb-3 mb-md-0">
+                    <div class="d-flex align-items-center gap-3">
+                        <i class="bi bi-book-half fs-1 text-warning"></i>
+                        <div>
+                            <h3 class="fw-bold m-0">¿Necesitas ayuda con el sistema?</h3>
+                            <p class="m-0 text-white opacity-90">Consulta nuestro <strong>Manual de Usuario Oficial</strong> paso a paso con capturas completas, guías de fertilización y asesoría lunar.</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4 text-md-end text-center">
+                    <a href="manual_usuario.html" class="btn btn-light btn-lg fw-bold px-4 py-3 rounded-pill shadow text-success d-inline-flex align-items-center gap-2">
+                        <span>Ver Manual Completo</span>
+                        <i class="bi bi-arrow-right-circle-fill"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container-fluid mb-5 pb-5 px-md-5">
+        
+        <div class="scroll-hint animate__animated animate__fadeIn animate__delay-2s">
+            <span class="fw-bold">Desliza hacia la derecha para ver la historia</span>
+            <i class="bi bi-arrow-right-circle-fill fs-4 text-primary"></i>
+        </div>
+
+        <div class="timeline-wrapper">
+            <div class="timeline-horizontal-container">
+                
+                <!-- 1. El Origen (Oct 2024) -->
+                <div class="timeline-card animate__animated animate__fadeInRight">
+                    <div class="team-collage">
+                        <img src="img/Adaly.JPG" alt="Adaly" title="Adaly">
+                        <img src="img/Carranza.JPG" alt="Carranza" title="Carranza">
+                        <img src="img/Nefta.JPG" alt="Nefta" title="Nefta">
+                        <img src="img/Omar.JPG" alt="Omar" title="Omar">
+                        <img src="img/Toño.JPG" alt="Toño" title="Toño">
+                        <img src="img/Yensi.JPG" alt="Yensi" title="Yensi">
+                    </div>
+                    <span class="version-tag">Octubre 2024</span>
+                    <h3 class="fw-bold mb-3">La Idea Original</h3>
+                    <p class="text-muted mb-0">El equipo de 6 fundadores se reúne con un objetivo claro: llevar la tecnología más avanzada directamente a las manos de los agricultores. Nace la visión de AgroSmart como una plataforma todo-en-uno que transformaría el campo para siempre.</p>
+                </div>
+
+                <!-- 2. Núcleo Agronómico (Dic 2024) -->
+                <div class="timeline-card animate__animated animate__fadeInRight animate__delay-1s" style="animation-delay: 0.1s;">
+                    <!-- Placeholder visual for the data architecture. Using a clean icon-based design since we didn't generate a specific mockup for this intermediate step -->
+                    <div class="system-mockup d-flex align-items-center justify-content-center" style="background: linear-gradient(135deg, #10b981 0%, #047857 100%);">
+                        <i class="bi bi-database-fill-check text-white" style="font-size: 5rem; opacity: 0.8;"></i>
+                    </div>
+                    <span class="version-tag">Diciembre 2024</span>
+                    <h3 class="fw-bold mb-3">Núcleo Agronómico</h3>
+                    <p class="text-muted mb-0">Desarrollamos el corazón del sistema: la gestión y registro de cultivos. Creamos una arquitectura sólida para que cada agricultor pudiera registrar sus parcelas, planificar fechas de siembra y llevar el control detallado de su producción de forma segura.</p>
+                </div>
+
+                <!-- 3. Visión Satelital 3D (Marzo 2025) -->
+                <div class="timeline-card animate__animated animate__fadeInRight animate__delay-1s" style="animation-delay: 0.2s;">
+                    <img src="img/agro_dashboard_mockup_1781711235791.png" alt="Mapa 3D AgroSmart" class="system-mockup">
+                    <span class="version-tag">Marzo 2025</span>
+                    <h3 class="fw-bold mb-3">Visión Satelital (Globo 3D)</h3>
+                    <p class="text-muted mb-0">Integramos el motor satelital interactivo en 3D. Ahora los usuarios pueden visualizar sus terrenos desde el espacio, revisar la topografía, elevación y estado del terreno con marcadores inteligentes de colores según su ubicación o cooperativa.</p>
+                </div>
+
+                <!-- 4. Clima y Luna (Agosto 2025) -->
+                <div class="timeline-card animate__animated animate__fadeInRight animate__delay-1s" style="animation-delay: 0.3s;">
+                    <img src="img/agro_weather_mockup_1781711248416.png" alt="Radares Climáticos" class="system-mockup">
+                    <span class="version-tag">Agosto 2025</span>
+                    <h3 class="fw-bold mb-3">Clima de Precisión y Luna</h3>
+                    <p class="text-muted mb-0">Sumamos potentes radares meteorológicos (nubosidad, lluvia, incendios, índice UV) en tiempo real. Además, escuchamos al agricultor tradicional e incorporamos el Calendario Lunar interactivo para optimizar las podas y siembras.</p>
+                </div>
+
+                <!-- 5. Control Empresarial (Dic 2025) -->
+                <div class="timeline-card animate__animated animate__fadeInRight animate__delay-1s" style="animation-delay: 0.4s;">
+                    <div class="system-mockup d-flex align-items-center justify-content-center" style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);">
+                        <i class="bi bi-briefcase-fill text-white" style="font-size: 5rem; opacity: 0.8;"></i>
+                    </div>
+                    <span class="version-tag">Diciembre 2025</span>
+                    <h3 class="fw-bold mb-3">Control Empresarial</h3>
+                    <p class="text-muted mb-0">Pensando en las asociaciones y el gobierno, lanzamos el Panel de Administración Global y Cooperativas. Agregamos los planes de licencia (Bronce, Diamante, Esmeralda) para escalar la distribución del software en todo el país.</p>
+                </div>
+
+                <!-- 6. Videollamadas (Feb 2026) -->
+                <div class="timeline-card animate__animated animate__fadeInRight animate__delay-1s" style="animation-delay: 0.5s;">
+                    <div class="system-mockup d-flex align-items-center justify-content-center" style="background: linear-gradient(135deg, #f59e0b 0%, #b45309 100%);">
+                        <i class="bi bi-camera-video-fill text-white" style="font-size: 5rem; opacity: 0.8;"></i>
+                    </div>
+                    <span class="version-tag">Febrero 2026</span>
+                    <h3 class="fw-bold mb-3">Videollamadas Satelitales</h3>
+                    <p class="text-muted mb-0">Llevamos a los expertos directamente al campo virtualmente. Implementamos una infraestructura de videollamadas peer-to-peer de alta calidad para conectar ingenieros agrónomos con agricultores sin salir de la plataforma.</p>
+                </div>
+
+                <!-- 7. AgroRed (Abril 2026) -->
+                <div class="timeline-card animate__animated animate__fadeInRight animate__delay-1s" style="animation-delay: 0.6s;">
+                    <img src="img/agro_social_mockup_1781711259037.png" alt="AgroRed Social" class="system-mockup">
+                    <span class="version-tag">Abril 2026</span>
+                    <h3 class="fw-bold mb-3">Lanzamiento de AgroRed</h3>
+                    <p class="text-muted mb-0">Nace AgroRed, la primera red social exclusiva para el sector agrícola. Un espacio vibrante donde nuestra comunidad sube fotos de sus cosechas, comparte tips, comenta y da 'likes', creando una red de conocimiento inmensa.</p>
+                </div>
+
+                <!-- 8. Agro IA (Junio 2026) -->
+                <div class="timeline-card animate__animated animate__fadeInRight animate__delay-1s" style="animation-delay: 0.7s;">
+                    <img src="img/agro_ai_mockup_1781711271760.png" alt="Agro IA" class="system-mockup">
+                    <span class="version-tag">Junio 2026 (Actual)</span>
+                    <h3 class="fw-bold mb-3">La Era de la IA (Agro IA)</h3>
+                    <p class="text-muted mb-0">Dimos el salto definitivo al futuro. Integramos nuestra Asistencia Inteligente (Jarvis) impulsada por más de 50 modelos avanzados (GPT-4o, Claude 3.5, Gemini 2.5). Ahora el agricultor tiene un ingeniero experto virtual disponible las 24 horas para resolver cualquier duda.</p>
+                </div>
+
+                <!-- Card vacía para dar margen de scroll al final -->
+                <div style="min-width: 40px; height: 1px;"></div>
+
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="js/config.js"></script>
+    <script src="js/database.js"></script>
+    <script src="js/layout.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            if (window.initLayout) window.initLayout('soporte');
+        });
+    </script>
+</body>
+</html>
