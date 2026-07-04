@@ -1,0 +1,7 @@
+# AgroSmart - Archivos ignorados
+node_modules/
+.DS_Store
+*.log
+.env
+.antigravity/
+brain/
