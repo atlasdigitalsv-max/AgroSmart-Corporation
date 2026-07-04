@@ -1,0 +1,1239 @@
+// Database Implementation with Supabase Cloud & Local Fallback
+
+const DB_KEY = 'agrosmart_db';
+
+class Database {
+    constructor() {
+        this.supabase = null;
+        const config = window.CONFIG || (typeof CONFIG !== 'undefined' ? CONFIG : null);
+        if (!config) {
+            console.warn("CONFIG not found. Check if config.js is loaded.");
+            this.initLocalDB();
+            return;
+        }
+        if (typeof supabase !== 'undefined' && config.SUPABASE_URL && config.SUPABASE_URL !== 'YOUR_SUPABASE_URL') {
+            this.supabase = supabase.createClient(config.SUPABASE_URL, config.SUPABASE_ANON_KEY);
+        }
+        // No initDB needed for Supabase as it's remote, but keep localStorage for local dev/fallback
+        this.initLocalDB();
+    }
+
+    async runMidnightChatCleanup() {
+        const lastClearDateStr = localStorage.getItem('last_chat_cleanup');
+        const todayStr = new Date().toISOString().split('T')[0];
+
+        if (lastClearDateStr !== todayStr) {
+            console.log("🌟 Medianoche detectada: Ejecutando borrado total de historiales de chat para liberar caché.");
+            if (this.supabase) {
+                try {
+                    if (navigator.onLine) {
+                        const { error } = await this.supabase.from('messages').delete().neq('id', 0);
+                        if (error) console.warn("Error limpiando chats en Supabase:", error);
+                    }
+                } catch(e) {
+                    console.warn("Fallo borrado de Supabase (posiblemente offline):", e.message);
+                }
+            } 
+            
+            // Local fallback cleanup
+            const db = this.getLocalDB();
+            if (db) {
+                db.messages = [];
+                this.saveLocalDB(db);
+            }
+
+            localStorage.setItem('last_chat_cleanup', todayStr);
+        }
+    }
+
+    initLocalDB() {
+        if (!localStorage.getItem(DB_KEY)) {
+            const initialData = {
+                users: [],
+                crops: [],
+                messages: [],
+                fertilizer_logs: [],
+                chat_groups: [],
+                chat_group_members: [],
+                posts: [],
+                post_comments: [],
+                friendships: []
+            };
+            this.saveLocalDB(initialData);
+        }
+    }
+
+    getLocalDB() {
+        return JSON.parse(localStorage.getItem(DB_KEY));
+    }
+
+    saveLocalDB(data) {
+        localStorage.setItem(DB_KEY, JSON.stringify(data));
+    }
+
+    async hashPassword(password) {
+        const msgUint8 = new TextEncoder().encode(password);
+        const hashBuffer = await crypto.subtle.digest('SHA-256', msgUint8);
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    }
+
+    // --- Users ---
+    async getUserByEmail(email) {
+        if (this.supabase && navigator.onLine) {
+            try {
+                const { data, error } = await this.supabase.from('users').select('*').eq('email', email).maybeSingle();
+                if (!error && data) return data;
+                if (error && error.code !== 'PGRST116') throw error; // Re-throw real errors to trigger fallback
+            } catch(e) {
+                console.warn("[Offline/Error] Fallback to local DB for getUserByEmail", e);
+            }
+        }
+        return this.getLocalDB().users.find(u => u.email === email);
+    }
+
+    async getUserById(id) {
+        if (!id) return null;
+        if (this.supabase && navigator.onLine) {
+            try {
+                const { data, error } = await this.supabase.from('users').select('*').eq('id', id).maybeSingle();
+                if (error) {
+                    console.warn("[Supabase] Error en getUserById:", error.message);
+                    throw error; 
+                }
+                if (data) return data;
+            } catch(e) {
+                // Silenced offline fallback log
+            }
+        }
+        
+        const localUser = this.getLocalDB().users.find(u => String(u.id) === String(id));
+        if (localUser) return localUser;
+        
+        return null;
+    }
+
+    async createUser(userObj) {
+        const hashedPassword = await this.hashPassword(userObj.password);
+        const baseUser = {
+            ...userObj,
+            password: hashedPassword,
+            is_superuser: userObj.is_superuser || false,
+            is_active: true,
+            role: userObj.role || 'farmer',
+            country_id: userObj.country_id || null,
+            org_id: userObj.org_id || null,
+            date_joined: new Date().toISOString(),
+            suspension_end: null,
+            suspension_reason: null,
+            suspended_by: null,
+            full_name: userObj.full_name || null,
+            avatar_url: userObj.avatar_url || null,
+            bio: userObj.bio || null
+        };
+
+        if (this.supabase) {
+            try {
+                // Limit enforcement for all regional users (everyone except corporate creators)
+                if (baseUser.role !== 'global_owner' && baseUser.country_id) {
+                    const countries = await this.getCountries();
+                    const country = countries.find(c => String(c.id) === String(baseUser.country_id));
+                    const plan = country ? (country.plan || 'none') : 'none';
+                    
+                    if (plan !== 'esmeralda') {
+                        const limits = { 'none': 50, 'bronce': 1000, 'platinium': 2500, 'diamante': 5000 };
+                        const limit = limits[plan] || 50;
+                        
+                        const { count, error: countErr } = await this.supabase
+                            .from('users')
+                            .select('*', { count: 'exact', head: true })
+                            .eq('country_id', baseUser.country_id)
+                            .neq('role', 'global_owner');
+                        
+                        if (!countErr && count >= limit) {
+                            throw new Error(`Límite de capacidad alcanzado para el plan ${plan.toUpperCase()} de este país (${limit} usuarios).`);
+                        }
+                    }
+                }
+
+                const { data, error } = await this.supabase.from('users').insert([baseUser]).select().single();
+                if (error) throw new Error(error.message);
+                return data;
+            } catch(e) {
+                if (!e.message?.includes('Failed to fetch') && !e.message?.includes('Límite')) throw e;
+                if (e.message?.includes('Límite')) throw e;
+                console.warn("[Offline] Fallback to local DB for createUser");
+            }
+        }
+        
+        const db = this.getLocalDB();
+        if (db.users.find(u => u.email === userObj.email)) throw new Error("User already exists");
+        const newUser = { id: Date.now(), ...baseUser };
+        db.users.push(newUser);
+        this.saveLocalDB(db);
+        return newUser;
+    }
+
+    async suspendUser(userId, hours, reason, adminId) {
+        const endDate = hours === 999999 ? new Date(2100, 0, 1) : new Date(Date.now() + (hours * 60 * 60 * 1000));
+        const endIso = endDate.toISOString();
+
+        if (this.supabase) {
+            try {
+                const { error } = await this.supabase.from('users').update({
+                    suspension_end: endIso,
+                    suspension_reason: reason,
+                    suspended_by: adminId
+                }).eq('id', userId);
+                if (error) throw new Error(error.message);
+                return;
+            } catch(e) {
+                if (!e.message?.includes('Failed to fetch')) throw e;
+                console.warn("[Offline] Fallback to local DB for suspendUser");
+            }
+        }
+
+        const db = this.getLocalDB();
+        db.users = db.users.map(u => u.id === userId ? { ...u, suspension_end: endIso, suspension_reason: reason, suspended_by: adminId } : u);
+        this.saveLocalDB(db);
+    }
+
+    async removeSuspension(userId) {
+        if (this.supabase) {
+            try {
+                const { error } = await this.supabase.from('users').update({
+                    suspension_end: null,
+                    suspension_reason: null,
+                    suspended_by: null
+                }).eq('id', userId);
+                if (error) throw new Error(error.message);
+                return;
+            } catch(e) {
+                if (!e.message?.includes('Failed to fetch')) throw e;
+                console.warn("[Offline] Fallback to local DB for removeSuspension");
+            }
+        }
+
+        const db = this.getLocalDB();
+        db.users = db.users.map(u => u.id === userId ? { ...u, suspension_end: null, suspension_reason: null, suspended_by: null } : u);
+        this.saveLocalDB(db);
+    }
+
+    async setAdminStatus(userId, isSuperUser, role = 'farmer', plan = null) {
+        if (this.supabase) {
+            try {
+                const updateData = { is_superuser: isSuperUser, role: role };
+                if (plan) updateData.plan = plan;
+                
+                const { error } = await this.supabase.from('users').update(updateData).eq('id', userId);
+                if (error) throw new Error(error.message);
+                return;
+            } catch(e) {
+                if (!e.message?.includes('Failed to fetch')) throw e;
+                console.warn("[Offline] Fallback to local DB for setAdminStatus");
+            }
+        }
+
+        const db = this.getLocalDB();
+        db.users = db.users.map(u => u.id === userId ? { ...u, is_superuser: isSuperUser, role: role, plan: plan || u.plan } : u);
+        this.saveLocalDB(db);
+    }
+
+    async updateUserPlan(userId, plan) {
+        if (this.supabase) {
+            try {
+                const { error } = await this.supabase.from('users').update({ plan: plan }).eq('id', userId);
+                if (error) throw new Error(error.message);
+                return;
+            } catch(e) {
+                if (!e.message?.includes('Failed to fetch')) throw e;
+                console.warn("[Offline] Fallback to local DB for updateUserPlan");
+            }
+        }
+
+        const db = this.getLocalDB();
+        db.users = db.users.map(u => u.id === userId ? { ...u, plan: plan } : u);
+        this.saveLocalDB(db);
+    }
+
+    async updateUserAffiliation(userId, countryId, orgId) {
+        // Handle "none" selection as null for database
+        const processedOrgId = orgId === 'none' ? null : orgId;
+
+        if (this.supabase) {
+            try {
+                const { error } = await this.supabase.from('users').update({ 
+                    country_id: countryId, 
+                    org_id: processedOrgId 
+                }).eq('id', userId);
+                if (error) throw new Error(error.message);
+                return;
+            } catch(e) {
+                if (!e.message?.includes('Failed to fetch')) throw e;
+                console.warn("[Offline] Fallback to local DB for updateUserAffiliation");
+            }
+        }
+
+        const db = this.getLocalDB();
+        db.users = db.users.map(u => u.id === userId ? { ...u, country_id: countryId, org_id: processedOrgId } : u);
+        this.saveLocalDB(db);
+    }
+
+    async getAllUsers(currentUser = null) {
+        if (this.supabase) {
+            let query = this.supabase.from('users').select('*');
+            if (currentUser) {
+                if (currentUser.role === 'global_owner') {
+                    // All users, no filters
+                } else if (currentUser.role === 'ministry_admin') {
+                    // Users from their country OR all Global Owners (Creators)
+                    query = query.or(`country_id.eq.${currentUser.country_id},role.eq.global_owner`);
+                } else if (currentUser.role === 'org_admin') {
+                    // Only Ministry Admins of their country OR other Org Admins of their country OR their own Farmers
+                    // Note: Cannot see global_owners or independent farmers
+                    query = query.eq('country_id', currentUser.country_id)
+                                 .or(`role.eq.ministry_admin,role.eq.org_admin,and(role.eq.farmer,org_id.eq.${currentUser.org_id})`);
+                } else if (currentUser.role === 'farmer') {
+                    // Only see Government Admins of their country OR all Global Owners
+                    query = query.or(`and(role.eq.ministry_admin,country_id.eq.${currentUser.country_id}),role.eq.global_owner`);
+                } else {
+                    return [currentUser];
+                }
+            }
+            const { data, error } = await query;
+            if (error) console.warn("[Supabase warning]:", error);
+            return data || [];
+        }
+
+        const db = this.getLocalDB();
+        if (!currentUser || currentUser.role === 'global_owner') return db.users;
+
+        if (currentUser.role === 'ministry_admin') {
+            return db.users.filter(u => u.country_id === currentUser.country_id || u.role === 'global_owner');
+        }
+        
+        if (currentUser.role === 'org_admin') {
+            return db.users.filter(u => 
+                u.country_id === currentUser.country_id && 
+                (u.role === 'ministry_admin' || u.role === 'org_admin' || (u.role === 'farmer' && u.org_id === currentUser.org_id))
+            );
+        }
+
+        if (currentUser.role === 'farmer') {
+            return db.users.filter(u => (u.country_id === currentUser.country_id && u.role === 'ministry_admin') || u.role === 'global_owner');
+        }
+
+        return db.users.filter(u => u.id === currentUser.id);
+    }
+
+    async updateUserPassword(userId, newPassword) {
+        const hashedPassword = await this.hashPassword(newPassword);
+        if (this.supabase) {
+            const { error } = await this.supabase.from('users').update({ password: hashedPassword }).eq('id', userId);
+            if (error) console.warn("[Supabase warning]:", error);
+            return;
+        }
+        const db = this.getLocalDB();
+        db.users = db.users.map(u => u.id === userId ? { ...u, password: hashedPassword } : u);
+        this.saveLocalDB(db);
+    }
+
+    async updateUserProfile(userId, profileData) {
+        if (this.supabase) {
+            try {
+                const { error } = await this.supabase.from('users').update({
+                    full_name: profileData.full_name,
+                    avatar_url: profileData.avatar_url,
+                    bio: profileData.bio
+                }).eq('id', userId);
+                if (error) throw new Error(error.message);
+                return;
+            } catch(e) {
+                if (!e.message?.includes('Failed to fetch')) throw e;
+                console.warn("[Offline] Fallback to local DB for updateUserProfile");
+            }
+        }
+        const db = this.getLocalDB();
+        db.users = db.users.map(u => u.id === userId ? { ...u, ...profileData } : u);
+        this.saveLocalDB(db);
+    }
+
+    async deleteUser(id) {
+        if (this.supabase) {
+            await this.supabase.from('crops').delete().eq('user_id', id);
+            await this.supabase.from('posts').delete().eq('user_id', id);
+            await this.supabase.from('post_comments').delete().eq('user_id', id);
+            await this.supabase.from('messages').delete().or(`sender_id.eq.${id},receiver_id.eq.${id}`);
+            await this.supabase.from('chat_group_members').delete().eq('user_id', id);
+            
+            // Cascading manual rules to avoid FK constraints errors on Admins
+            await this.supabase.from('chat_groups').delete().eq('created_by', id);
+            await this.supabase.from('friendships').delete().or(`user_id1.eq.${id},user_id2.eq.${id}`);
+            await this.supabase.from('users').update({ suspended_by: null }).eq('suspended_by', id);
+            
+            const { error } = await this.supabase.from('users').delete().eq('id', id);
+            if (error) {
+                console.warn("[Supabase warning]:", error);
+                throw new Error(error.message);
+            }
+            return;
+        }
+        const db = this.getLocalDB();
+        db.users = db.users.filter(u => u.id !== id);
+        db.crops = db.crops.filter(c => c.user_id !== id);
+        if (db.posts) db.posts = db.posts.filter(p => p.user_id !== id);
+        if (db.post_comments) db.post_comments = db.post_comments.filter(pc => pc.user_id !== id);
+        if (db.messages) db.messages = db.messages.filter(m => m.sender_id !== id && m.receiver_id !== id);
+        this.saveLocalDB(db);
+    }
+
+    async getCropsByUser(userId) {
+        if (this.supabase) {
+            const { data, error } = await this.supabase.from('crops').select('*').eq('user_id', userId);
+            if (error) console.warn("[Supabase warning]:", error);
+            return data || [];
+        }
+        return this.getLocalDB().crops.filter(c => c.user_id === userId);
+    }
+
+    async getCountries() {
+        if (this.supabase && navigator.onLine) {
+            try {
+                const { data, error } = await this.supabase.from('countries').select('*').neq('code', 'CORP');
+                if (!error && data) return data;
+            } catch(e) { /* Silenced */ }
+        }
+        return [
+            { id: 1, name: 'El Salvador', code: 'SV', plan: 'esmeralda' },
+            { id: 10, name: 'Guatemala', code: 'GT', plan: 'none' },
+            { id: 11, name: 'Honduras', code: 'HN', plan: 'none' },
+            { id: 12, name: 'Nicaragua', code: 'NI', plan: 'none' },
+            { id: 13, name: 'Costa Rica', code: 'CR', plan: 'none' },
+            { id: 14, name: 'Panamá', code: 'PA', plan: 'none' },
+            { id: 15, name: 'Belice', code: 'BZ', plan: 'none' }
+        ];
+    }
+
+    async setCountryPlan(countryId, plan) {
+        if (this.supabase) {
+            const { error } = await this.supabase.from('countries').update({ plan }).eq('id', countryId);
+            if (error) throw error;
+            return true;
+        }
+        // Local fallback
+        return true;
+    }
+
+    async getCooperativasByCountry(countryId) {
+        if (!countryId || countryId === 'null') return [];
+        
+        if (this.supabase) {
+            const { data, error } = await this.supabase.from('organizations').select('*').eq('country_id', countryId);
+            if (error) {
+                console.warn("[Supabase] Organizations Warning:", error);
+                return [];
+            }
+            return data || [];
+        }
+        return [{ id: 1, country_id: 1, name: 'Cooperativa Agrícola SV' }];
+    }
+
+    async createCooperativa(name, countryId) {
+        if (this.supabase) {
+            // Limit enforcement
+            const countries = await this.getCountries();
+            const country = countries.find(c => String(c.id) === String(countryId));
+            const plan = country ? (country.plan || 'none') : 'none';
+            
+            if (plan !== 'esmeralda') {
+                const limits = { 'none': 1, 'bronce': 3, 'platinium': 10, 'diamante': 25 };
+                const limit = limits[plan] || 1;
+                
+                const { count, error: countErr } = await this.supabase
+                    .from('organizations')
+                    .select('*', { count: 'exact', head: true })
+                    .eq('country_id', countryId);
+                
+                if (!countErr && count >= limit) {
+                    throw new Error(`Límite de cooperativas alcanzado para el plan ${plan.toUpperCase()} de este país (${limit}).`);
+                }
+            }
+
+            const { data, error } = await this.supabase.from('organizations').insert([{ name, country_id: countryId }]).select();
+            if (error) throw error;
+            return data[0];
+        }
+        const db = this.getLocalDB();
+        const newOrg = { id: Date.now(), country_id: countryId, name };
+        db.organizations.push(newOrg);
+        this.saveLocalDB(db);
+        return newOrg;
+    }
+
+    async updateCooperativa(id, name) {
+        if (this.supabase) {
+            const { data, error } = await this.supabase.from('organizations').update({ name }).eq('id', id).select();
+            if (error) throw error;
+            return data[0];
+        }
+        const db = this.getLocalDB();
+        const org = db.organizations.find(o => o.id === parseInt(id));
+        if (org) org.name = name;
+        this.saveLocalDB(db);
+        return org;
+    }
+
+    async deleteCooperativa(id) {
+        if (this.supabase) {
+            const { error } = await this.supabase.from('organizations').delete().eq('id', id);
+            if (error) throw error;
+            return true;
+        }
+        const db = this.getLocalDB();
+        db.organizations = db.organizations.filter(o => o.id !== parseInt(id));
+        this.saveLocalDB(db);
+        return true;
+    }
+
+    async getAllCrops(currentUser = null) {
+        if (this.supabase && navigator.onLine) {
+            let query = this.supabase.from('crops').select('*');
+            
+            if (currentUser) {
+                if (currentUser.role === 'global_owner') {
+                    // Sees everything
+                } else if (currentUser.role === 'ministry_admin') {
+                    // Filter crops by users in the same country
+                    const { data: userIds } = await this.supabase.from('users').select('id').eq('country_id', currentUser.country_id);
+                    const ids = (userIds || []).map(u => u.id);
+                    query = query.in('user_id', ids);
+                } else if (currentUser.role === 'org_admin') {
+                    // Filter by organization
+                    query = query.eq('org_id', currentUser.org_id);
+                } else {
+                    // Standard farmer
+                    // Fix: PostgREST requires 'is.null' not 'eq.null' inside OR blocks.
+                    // If org_id is null, we only want their own crops. If they have an org_id, we want their crops OR crops belonging to their org.
+                    if (currentUser.org_id) {
+                        query = query.or(`user_id.eq.${currentUser.id},org_id.eq.${currentUser.org_id}`);
+                    } else {
+                        query = query.eq('user_id', currentUser.id);
+                    }
+                }
+            }
+
+            try {
+                const { data, error } = await query;
+                if (!error && data) return data;
+            } catch (err) {
+                // Silenced
+            }
+        }
+
+        const db = this.getLocalDB();
+        if (!currentUser) return db.crops;
+
+        if (currentUser.role === 'global_owner') return db.crops;
+        
+        if (currentUser.role === 'ministry_admin') {
+            const countryUserIds = db.users.filter(u => u.country_id === currentUser.country_id).map(u => u.id);
+            return db.crops.filter(c => countryUserIds.includes(c.user_id));
+        }
+
+        if (currentUser.role === 'org_admin') {
+            return db.crops.filter(c => c.org_id === currentUser.org_id);
+        }
+
+        // Farmer: own crops OR crops belonging to their organization
+        return db.crops.filter(c => 
+            c.user_id === currentUser.id || 
+            (currentUser.org_id && c.org_id === currentUser.org_id)
+        );
+    }
+
+    async createCrop(cropObj) {
+        let createdCrop;
+        // Inject org_id if user belongs to an organization
+        const currentUser = await window.AuthObj.getCurrentUser();
+        const baseCrop = {
+            ...cropObj,
+            org_id: currentUser ? currentUser.org_id : null,
+            created_at: new Date().toISOString()
+        };
+
+        if (this.supabase) {
+            const { data, error } = await this.supabase.from('crops').insert([baseCrop]).select().single();
+            if (error) throw new Error(error.message);
+            createdCrop = data;
+        } else {
+            const db = this.getLocalDB();
+            createdCrop = { id: Date.now(), ...baseCrop };
+            db.crops.push(createdCrop);
+            this.saveLocalDB(db);
+        }
+
+        // --- Automatic Fertilizer Logs Logic ---
+        await this.generateFertilizerLogs(createdCrop);
+
+        return createdCrop;
+    }
+
+    async generateFertilizerLogs(cropObj) {
+        const catalog = window.CROP_CATALOG || {};
+        
+        // Helper to normalize strings (remove accents/special chars)
+        const normalize = (s) => (s || "").toLowerCase()
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "")
+            .trim();
+
+        const normalizedName = normalize(cropObj.name);
+        console.log("Normalizando búsqueda:", cropObj.name, "=>", normalizedName);
+        let catalogEntry = null;
+
+        // Search in catalog using normalized keys
+        const catalogKeys = Object.keys(catalog);
+        console.log("Teclas del catálogo disponibles:", catalogKeys.length);
+        
+        const matchKey = catalogKeys.find(k => normalize(k) === normalizedName) || 
+                         catalogKeys.find(k => normalizedName.includes(normalize(k)) || normalize(k).includes(normalizedName));
+        
+        console.log("Resultado del match:", matchKey);
+        
+        if (matchKey) catalogEntry = catalog[matchKey];
+
+        if (catalogEntry && catalogEntry.fertilizer_plan) {
+            const sowingDate = new Date(cropObj.sowing_date);
+            const logEntries = catalogEntry.fertilizer_plan.map(plan => {
+                const scheduledDate = new Date(sowingDate);
+                scheduledDate.setDate(scheduledDate.getDate() + plan.day);
+                
+                return {
+                    crop_id: cropObj.id,
+                    // REMOVED user_id to match actual schema from screenshot
+                    tip: `${plan.product} (${plan.dose})`,
+                    scheduled_date: scheduledDate.toISOString().split('T')[0],
+                    status: 'pendiente'
+                };
+            });
+
+            if (this.supabase) {
+                const { error: logErr } = await this.supabase.from('fertilizer_logs').insert(logEntries);
+                if (logErr) {
+                    console.warn("Warning creating automatic logs:", logErr);
+                    throw new Error(logErr.message);
+                }
+            } else {
+                const db = this.getLocalDB();
+                if (!db.fertilizer_logs) db.fertilizer_logs = [];
+                logEntries.forEach(log => {
+                    log.id = Date.now() + Math.random();
+                    db.fertilizer_logs.push(log);
+                });
+                this.saveLocalDB(db);
+            }
+            return true;
+        }
+        return false;
+    }
+
+    async deleteCrop(id) {
+        if (this.supabase) {
+            const { error } = await this.supabase.from('crops').delete().eq('id', id);
+            if (error) console.warn("[Supabase warning]:", error);
+            return;
+        }
+        const db = this.getLocalDB();
+        db.crops = db.crops.filter(c => c.id !== id);
+        this.saveLocalDB(db);
+    }
+
+    // --- Chat Messages ---
+    async getMessages(userId1, userId2) {
+        if (this.supabase && navigator.onLine) {
+            const { data, error } = await this.supabase
+                .from('messages')
+                .select('*')
+                .is('group_id', null)
+                .or(`and(sender_id.eq.${userId1},receiver_id.eq.${userId2}),and(sender_id.eq.${userId2},receiver_id.eq.${userId1})`)
+                .order('timestamp', { ascending: true });
+            if (error) console.warn("[Supabase warning]:", error);
+            return data || [];
+        }
+        return this.getLocalDB().messages.filter(m => 
+            !m.group_id &&
+            ((m.sender_id === userId1 && m.receiver_id === userId2) ||
+            (m.sender_id === userId2 && m.receiver_id === userId1))
+        ).sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+    }
+
+    // --- Chat Groups ---
+    async createGroup(name, creatorId, userIds) {
+        if (this.supabase) {
+            // Create Group Document
+            const { data: group, error: groupErr } = await this.supabase.from('chat_groups').insert([{
+                name: name,
+                created_by: creatorId,
+                created_at: new Date().toISOString()
+            }]).select().single();
+            if (groupErr) throw new Error(groupErr.message);
+
+            // Insert matching members
+            const memberInserts = userIds.map(uid => ({ group_id: group.id, user_id: uid }));
+            memberInserts.push({ group_id: group.id, user_id: creatorId }); // Always include creator
+            const { error: memErr } = await this.supabase.from('chat_group_members').insert(memberInserts);
+            if (memErr) throw new Error(memErr.message);
+
+            return group;
+        }
+
+        const db = this.getLocalDB();
+        const newGroup = { id: Date.now(), name, created_by: creatorId, created_at: new Date().toISOString() };
+        db.chat_groups.push(newGroup);
+        db.chat_group_members.push({ group_id: newGroup.id, user_id: creatorId });
+        userIds.forEach(uid => db.chat_group_members.push({ group_id: newGroup.id, user_id: uid }));
+        this.saveLocalDB(db);
+        return newGroup;
+    }
+
+    async getUserGroups(userId) {
+        if (this.supabase && navigator.onLine) {
+            // Join query via Supabase relations
+            const { data, error } = await this.supabase
+                .from('chat_group_members')
+                .select('group_id, chat_groups(*)')
+                .eq('user_id', userId);
+            if (error) console.warn("[Supabase warning]:", error);
+            return data ? data.map(d => d.chat_groups) : [];
+        }
+
+        const db = this.getLocalDB();
+        const myGroupIds = db.chat_group_members.filter(cm => cm.user_id === userId).map(cm => cm.group_id);
+        return db.chat_groups.filter(g => myGroupIds.includes(g.id));
+    }
+
+    async getGroupMessages(groupId) {
+        if (this.supabase) {
+            const { data, error } = await this.supabase
+                .from('messages')
+                .select('*')
+                .eq('group_id', groupId)
+                .order('timestamp', { ascending: true });
+            if (error) console.warn("[Supabase warning]:", error);
+            return data || [];
+        }
+        return this.getLocalDB().messages.filter(m => m.group_id === parseInt(groupId))
+            .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+    }
+
+    async sendMessage(messageObj) {
+        // Automatically inject group_id parameter handling implicitly in payload
+        const payload = {
+            ...messageObj,
+            timestamp: new Date().toISOString(),
+            is_read: false
+        };
+
+        if (this.supabase) {
+            const { data, error } = await this.supabase.from('messages').insert([payload]).select().single();
+            if (error) throw new Error(error.message);
+            return data;
+        }
+        const db = this.getLocalDB();
+        const newMsg = { id: Date.now(), ...payload };
+        db.messages.push(newMsg);
+        this.saveLocalDB(db);
+        return newMsg;
+    }
+
+    async markAsRead(senderId, receiverId) {
+        if (this.supabase) {
+            const { error } = await this.supabase.from('messages')
+                .update({ is_read: true })
+                .eq('sender_id', senderId)
+                .eq('receiver_id', receiverId);
+            if (error) console.warn("[Supabase warning]:", error);
+            return;
+        }
+        const db = this.getLocalDB();
+        db.messages = db.messages.map(m => (m.sender_id === senderId && m.receiver_id === receiverId) ? { ...m, is_read: true } : m);
+        this.saveLocalDB(db);
+    }
+
+    // --- AgroRed: Posts ---
+    async createPost(userId, content, imageUrl = null) {
+        const payload = {
+            user_id: userId,
+            content: content,
+            image_url: imageUrl,
+            created_at: new Date().toISOString(),
+            likes_count: 0
+        };
+
+        if (this.supabase) {
+            try {
+                const { data, error } = await this.supabase.from('posts').insert([payload]).select().single();
+                if (error) throw new Error(error.message);
+                return data;
+            } catch(e) {
+                console.warn("Fallback to local posts", e);
+            }
+        }
+
+        const db = this.getLocalDB();
+        if (!db.posts) db.posts = [];
+        const newPost = { id: Date.now(), ...payload };
+        db.posts.push(newPost);
+        this.saveLocalDB(db);
+        return newPost;
+    }
+
+    async getPosts() {
+        if (this.supabase && navigator.onLine) {
+            try {
+                const { data, error } = await this.supabase.from('posts').select('*, users(full_name, email, avatar_url, role)').order('created_at', { ascending: false });
+                if (!error) return data;
+            } catch(e) {}
+        }
+        const db = this.getLocalDB();
+        if (!db.posts) return [];
+        return db.posts.sort((a,b) => new Date(b.created_at) - new Date(a.created_at)).map(p => {
+            const u = db.users.find(user => user.id === p.user_id) || {};
+            return { ...p, users: { full_name: u.full_name, email: u.email, avatar_url: u.avatar_url, role: u.role }};
+        });
+    }
+
+    async deletePost(postId) {
+        if (this.supabase && navigator.onLine) {
+            try {
+                await this.supabase.from('posts').delete().eq('id', postId);
+            } catch(e) {}
+        }
+        const db = this.getLocalDB();
+        if (db.posts) db.posts = db.posts.filter(p => p.id !== postId);
+        if (db.post_comments) db.post_comments = db.post_comments.filter(c => c.post_id !== postId);
+        this.saveLocalDB(db);
+    }
+
+    async updatePost(postId, newContent) {
+        if (this.supabase && navigator.onLine) {
+            try {
+                await this.supabase.from('posts').update({ content: newContent }).eq('id', postId);
+            } catch(e) {}
+        }
+        const db = this.getLocalDB();
+        const post = db.posts.find(p => p.id === postId);
+        if (post) post.content = newContent;
+        this.saveLocalDB(db);
+    }
+
+    async likePost(postId) {
+        if (this.supabase) {
+            try {
+                // Fetch first to increment (simple approach)
+                const { data: post } = await this.supabase.from('posts').select('likes_count').eq('id', postId).single();
+                if (post) {
+                    await this.supabase.from('posts').update({ likes_count: (post.likes_count || 0) + 1 }).eq('id', postId);
+                }
+                return;
+            } catch(e) {}
+        }
+        const db = this.getLocalDB();
+        const post = db.posts.find(p => p.id === postId);
+        if (post) post.likes_count = (post.likes_count || 0) + 1;
+        this.saveLocalDB(db);
+    }
+
+    // --- Post Comments ---
+    async getPostComments(postId) {
+        if (this.supabase && navigator.onLine) {
+            try {
+                const { data, error } = await this.supabase
+                    .from('post_comments')
+                    .select('*, users(full_name, email, avatar_url, role)')
+                    .eq('post_id', postId)
+                    .order('created_at', { ascending: true });
+                if (!error) return data || [];
+            } catch(e) {}
+        }
+        const db = this.getLocalDB();
+        if (!db.post_comments) return [];
+        return db.post_comments.filter(c => c.post_id === postId)
+            .sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
+            .map(c => {
+                const u = db.users.find(user => user.id === c.user_id) || {};
+                return { ...c, users: { full_name: u.full_name, email: u.email, avatar_url: u.avatar_url, role: u.role }};
+            });
+    }
+
+    async createPostComment(postId, userId, content) {
+        const payload = {
+            post_id: postId,
+            user_id: userId,
+            content: content,
+            created_at: new Date().toISOString()
+        };
+
+        if (this.supabase && navigator.onLine) {
+            try {
+                const { data, error } = await this.supabase.from('post_comments').insert([payload]).select().single();
+                if (error) throw new Error(error.message);
+                return data;
+            } catch(e) { console.warn(e); }
+        }
+
+        const db = this.getLocalDB();
+        if (!db.post_comments) db.post_comments = [];
+        const newComment = { id: Date.now(), ...payload };
+        db.post_comments.push(newComment);
+        this.saveLocalDB(db);
+        return newComment;
+    }
+
+    // --- AgroRed: Friendships ---
+    async sendFriendRequest(userId1, userId2) {
+        if (userId1 === userId2) throw new Error("No puedes enviarte solicitud a ti mismo");
+        if (this.supabase) {
+            try {
+                // Check if reverse exists
+                const { data: existing } = await this.supabase.from('friendships')
+                    .select('*')
+                    .or(`and(user_id1.eq.${userId1},user_id2.eq.${userId2}),and(user_id1.eq.${userId2},user_id2.eq.${userId1})`)
+                    .single();
+                if (existing) throw new Error("Ya existe una relación con este usuario");
+
+                const { error } = await this.supabase.from('friendships').insert([{
+                    user_id1: userId1, // Sender
+                    user_id2: userId2, // Receiver
+                    status: 'pending',
+                    created_at: new Date().toISOString()
+                }]);
+                if (error) throw new Error(error.message);
+                return;
+            } catch(e) {
+                if(e.message === "Ya existe una relación con este usuario") throw e;
+                console.warn("Fallback friendship", e);
+            }
+        }
+        const db = this.getLocalDB();
+        if (!db.friendships) db.friendships = [];
+        if (!db.friendships.find(f => (f.user_id1 === userId1 && f.user_id2 === userId2) || (f.user_id1 === userId2 && f.user_id2 === userId1))) {
+            db.friendships.push({ id: Date.now(), user_id1: userId1, user_id2: userId2, status: 'pending', created_at: new Date().toISOString() });
+            this.saveLocalDB(db);
+        } else {
+            throw new Error("Ya existe una relación con este usuario");
+        }
+    }
+
+    async acceptFriendRequest(friendshipId) {
+        if (this.supabase) {
+            try {
+                await this.supabase.from('friendships').update({ status: 'accepted' }).eq('id', friendshipId);
+                return;
+            } catch(e) {}
+        }
+        const db = this.getLocalDB();
+        const f = db.friendships.find(f => f.id === friendshipId);
+        if (f) f.status = 'accepted';
+        this.saveLocalDB(db);
+    }
+
+    async getFriendships(userId) {
+        if (this.supabase && navigator.onLine) {
+            try {
+                const { data, error } = await this.supabase.from('friendships')
+                    .select('*')
+                    .or(`user_id1.eq.${userId},user_id2.eq.${userId}`);
+                if (!error) return data;
+            } catch(e) {}
+        }
+        const db = this.getLocalDB();
+        if (!db.friendships) return [];
+        return db.friendships.filter(f => f.user_id1 === userId || f.user_id2 === userId);
+    }
+
+    async deleteFriendship(friendshipId) {
+        // First get friendship to know who the users are to delete messages
+        let u1 = null, u2 = null;
+
+        if (this.supabase && navigator.onLine) {
+            try {
+                const { data } = await this.supabase.from('friendships').select('*').eq('id', friendshipId).single();
+                if (data) {
+                    u1 = data.user_id1;
+                    u2 = data.user_id2;
+                }
+                await this.supabase.from('friendships').delete().eq('id', friendshipId);
+                if (u1 && u2) {
+                    // Delete chat history between them
+                    await this.supabase.from('messages')
+                        .delete()
+                        .or(`and(sender_id.eq.${u1},receiver_id.eq.${u2}),and(sender_id.eq.${u2},receiver_id.eq.${u1})`);
+                }
+                return;
+            } catch(e) { console.warn("Warning deleting friendship:", e); }
+        }
+
+        const db = this.getLocalDB();
+        const f = db.friendships.find(fr => fr.id === friendshipId);
+        if (f) {
+            u1 = f.user_id1;
+            u2 = f.user_id2;
+            db.friendships = db.friendships.filter(fr => fr.id !== friendshipId);
+            // Delete messages locally
+            if (db.messages) {
+                db.messages = db.messages.filter(m => !((m.sender_id === u1 && m.receiver_id === u2) || (m.sender_id === u2 && m.receiver_id === u1)));
+            }
+            this.saveLocalDB(db);
+        }
+    }
+
+    // --- Soporte Prioritario y Videollamadas: Fichas de Reporte ---
+    async createVideocallReport(reportObj) {
+        const payload = {
+            caller_id: String(reportObj.caller_id || 'guest'),
+            caller_name: reportObj.caller_name || 'Usuario',
+            caller_role: reportObj.caller_role || 'farmer',
+            target_role: reportObj.target_role || 'ministry_admin',
+            country: reportObj.country || 'Global',
+            subject: reportObj.subject || 'Asistencia Técnica',
+            description: reportObj.description || '',
+            status: 'open',
+            room_name: reportObj.room_name || 'AgroSmart_Room_' + Date.now(),
+            created_at: new Date().toISOString()
+        };
+
+        if (this.supabase && navigator.onLine) {
+            try {
+                const { data, error } = await this.supabase
+                    .from('videocall_reports')
+                    .insert([payload])
+                    .select()
+                    .single();
+                if (!error && data) return data;
+            } catch(e) {
+                console.warn("[Offline/Supabase Error] Guardando ficha localmente", e);
+            }
+        }
+
+        const db = this.getLocalDB();
+        if (!db.videocall_reports) db.videocall_reports = [];
+        const newReport = { id: 'local_' + Date.now() + '_' + Math.floor(Math.random()*1000), ...payload };
+        db.videocall_reports.push(newReport);
+        this.saveLocalDB(db);
+        return newReport;
+    }
+
+    async getVideocallReports(currentUser = null) {
+        if (this.supabase && navigator.onLine) {
+            try {
+                let query = this.supabase.from('videocall_reports').select('*').order('created_at', { ascending: false });
+                
+                if (currentUser) {
+                    if (currentUser.role === 'global_owner' || currentUser.is_superuser) {
+                        // Dueños Globales ven todas las fichas o aquellas dirigidas a 'global_owner' o sus propias llamadas
+                    } else if (currentUser.role === 'ministry_admin') {
+                        // Admins del ministerio ven fichas de su país/jurisdicción, o donde target_role es ministry_admin, o sus propias llamadas
+                        query = query.or(`target_role.eq.ministry_admin,caller_id.eq.${currentUser.id}`);
+                    } else {
+                        // Agricultores o admins de cooperativa ven únicamente sus propias fichas
+                        query = query.eq('caller_id', String(currentUser.id));
+                    }
+                }
+
+                const { data, error } = await query;
+                if (!error && data) return data;
+            } catch(e) {
+                console.warn("[Offline/Supabase Error] Leyendo fichas locales", e);
+            }
+        }
+
+        const db = this.getLocalDB();
+        if (!db.videocall_reports) return [];
+        let reports = [...db.videocall_reports].sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
+        
+        if (!currentUser) return reports;
+        if (currentUser.role === 'global_owner' || currentUser.is_superuser) return reports;
+        if (currentUser.role === 'ministry_admin') {
+            return reports.filter(r => r.target_role === 'ministry_admin' || String(r.caller_id) === String(currentUser.id));
+        }
+        return reports.filter(r => String(r.caller_id) === String(currentUser.id));
+    }
+
+    async updateVideocallReport(reportId, updateData) {
+        if (this.supabase && navigator.onLine && !String(reportId).startsWith('local_')) {
+            try {
+                const { data, error } = await this.supabase
+                    .from('videocall_reports')
+                    .update(updateData)
+                    .eq('id', reportId)
+                    .select()
+                    .single();
+                if (!error && data) return data;
+            } catch(e) {
+                console.warn("[Offline/Supabase Error] Actualizando ficha localmente", e);
+            }
+        }
+
+        const db = this.getLocalDB();
+        if (db.videocall_reports) {
+            const index = db.videocall_reports.findIndex(r => String(r.id) === String(reportId));
+            if (index !== -1) {
+                db.videocall_reports[index] = { ...db.videocall_reports[index], ...updateData };
+                this.saveLocalDB(db);
+                return db.videocall_reports[index];
+            }
+        }
+        return null;
+    }
+}
+
+// Instantiate global database
+const windowDB = new Database();
+window.DB = windowDB;
+
+// Helper Auth Methods
+window.AuthObj = {
+    login: async function(email, password) {
+        console.log("Intentando login para:", email);
+        const user = await window.DB.getUserByEmail(email);
+        if (user) {
+            console.log("Usuario encontrado en DB. Verificando password...");
+            const hashedInput = await window.DB.hashPassword(password);
+            
+            if (user.password === hashedInput) {
+                // Check if user is currently suspended
+                if (user.suspension_end && new Date(user.suspension_end) > new Date()) {
+                    const suspensionEnd = new Date(user.suspension_end);
+                    const isPermanent = suspensionEnd.getFullYear() === 2100;
+                    const blockText = isPermanent 
+                        ? `<p class="mb-3 fw-bold text-danger fs-5">Tu cuenta ha sido bloqueada PERMANENTEMENTE.</p>`
+                        : `<p class="mb-3 text-muted">Tu cuenta ha sido bloqueada hasta ${suspensionEnd.toLocaleDateString()}.</p>`;
+
+                    const SwalConfig = {
+                        icon: 'error',
+                        title: 'Cuenta Suspendida', 
+                        html: `
+                            ${blockText}
+                            <div class="p-3 bg-light rounded text-start mb-3 border">
+                                <strong>Motivo:</strong><br>
+                                ${user.suspension_reason || 'Infracción a las políticas'}
+                            </div>
+                            ${!isPermanent ? '<p class="small text-muted mb-0">¿Deseas enviar una carta de apelación al administrador?</p>' : ''}
+                        `,
+                        showCancelButton: true,
+                        cancelButtonText: 'Cerrar',
+                        confirmButtonColor: 'var(--primary-color)'
+                    };
+
+                    if (!isPermanent) {
+                        SwalConfig.input = 'textarea';
+                        SwalConfig.inputPlaceholder = 'Escribe aquí tu justificación o carta de perdón...';
+                        SwalConfig.inputAttributes = { rows: 4 };
+                        SwalConfig.confirmButtonText = 'Enviar Apelación';
+                    } else {
+                        SwalConfig.showConfirmButton = false;
+                        SwalConfig.cancelButtonText = 'Aceptar y Salir';
+                        SwalConfig.cancelButtonColor = '#dc3545';
+                    }
+
+                    const { isConfirmed, value } = await Swal.fire(SwalConfig);
+
+                    if (!isPermanent && isConfirmed && value && user.suspended_by) {
+                        try {
+                            await window.DB.sendMessage({
+                                sender_id: user.id,
+                                receiver_id: user.suspended_by,
+                                text: `[CARTA DE APELACIÓN]\n${value}`
+                            });
+                            window.showSuccessModal('Apelación Enviada', 'El administrador revisará tu caso pronto.');
+                        } catch (err) {
+                            window.showErrorModal('Error', 'No se pudo enviar la apelación: ' + err.message);
+                        }
+                    }
+
+                    return false;
+                }
+
+                console.log("¡Login exitoso!");
+                sessionStorage.setItem('current_user_id', user.id);
+                sessionStorage.setItem('show_welcome_modal', 'true');
+                return true;
+            } else {
+                console.warn("Mismatch de contraseñas.");
+            }
+        } else {
+            console.warn("Usuario no encontrado en la base de datos.");
+        }
+        return false;
+    },
+    logout: function() {
+        sessionStorage.removeItem('current_user_id');
+        localStorage.removeItem('agrosmart_user_cache');
+        window.location.href = 'index.html';
+    },
+    getCurrentUser: async function(forceRefresh = false) {
+        const id = sessionStorage.getItem('current_user_id');
+        if (!id) {
+            localStorage.removeItem('agrosmart_user_cache');
+            return null;
+        }
+
+        // Try to get from persistent cache first for instant UI response
+        if (!forceRefresh) {
+            let cached = localStorage.getItem('agrosmart_user_cache');
+            if (cached) {
+                try {
+                    const userObj = JSON.parse(cached);
+                    if (String(userObj.id) === String(id)) {
+                        // Update in background but return cache immediately
+                        this.refreshUserInBackground(id);
+                        return userObj;
+                    }
+                } catch(e) { /* ignore parse error */ }
+            }
+        }
+
+        return await this.refreshUser(id);
+    },
+
+    refreshUser: async function(id) {
+        try {
+            const user = await window.DB.getUserById(id);
+            if (!user) {
+                return { id: id, role: 'farmer', is_superuser: false, _isStub: true };
+            }
+            localStorage.setItem('agrosmart_user_cache', JSON.stringify(user));
+            return user;
+        } catch (e) {
+            return { id: id, role: 'farmer', is_superuser: false, _isStub: true };
+        }
+    },
+
+    refreshUserInBackground: async function(id) {
+        if (!navigator.onLine) return; // Prevent background network noise
+        try {
+            const user = await window.DB.getUserById(id);
+            if (user) {
+                localStorage.setItem('agrosmart_user_cache', JSON.stringify(user));
+            }
+        } catch(e) {}
+    },
+    requireAuth: async function() {
+        const user = await this.getCurrentUser();
+        if (!user) {
+            window.location.href = 'index.html';
+            throw new Error("Auth required");
+        }
+        return user;
+    },
+    requireAdmin: async function() {
+        const user = await this.getCurrentUser();
+        const isAdminRole = ['global_owner', 'ministry_admin', 'org_admin'].includes(user?.role);
+        if (!user || (!user.is_superuser && !isAdminRole)) {
+            window.location.href = 'dashboard.html';
+            throw new Error("Admin required");
+        }
+        return user;
+    }
+};
