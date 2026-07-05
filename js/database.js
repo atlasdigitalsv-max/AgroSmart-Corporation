@@ -355,8 +355,10 @@ class Database {
                 if (error) throw new Error(error.message);
                 return;
             } catch(e) {
-                if (!e.message?.includes('Failed to fetch')) throw e;
-                console.warn("[Offline] Fallback to local DB for updateUserProfile");
+                console.warn("[Offline] Fallback to local DB for updateUserProfile", e);
+                if (window.showErrorModal) {
+                    window.showErrorModal('Error al actualizar perfil', e.message || JSON.stringify(e));
+                }
             }
         }
         const db = this.getLocalDB();
@@ -1092,7 +1094,6 @@ class Database {
         const payload = {
             caller_id: String(reportObj.caller_id || 'guest'),
             caller_name: reportObj.caller_name || 'Usuario',
-            caller_email: reportObj.caller_email || (currentUser ? currentUser.email : ''),
             caller_role: reportObj.caller_role || 'farmer',
             target_role: initialTarget,
             country: reportObj.country || 'Global',
@@ -1182,7 +1183,7 @@ class Database {
             return !r.assigned_to || String(r.assigned_to) === String(currentUser.id) || String(r.caller_id) === String(currentUser.id);
         };
 
-        if (role === 'global_owner' || currentUser.is_superuser) {
+        if (role === 'global_owner') {
             return allReports.filter(r => ((r.target_role === 'global_owner' || r.is_escalated === true) && isAssignedToMeOrUnassigned(r)) || String(r.caller_id) === String(currentUser.id));
         } else if (role === 'ministry_admin') {
             return allReports.filter(r => (r.target_role === 'ministry_admin' && String(r.country) === String(currentUser.country_id || r.country) && isAssignedToMeOrUnassigned(r)) || String(r.caller_id) === String(currentUser.id));
