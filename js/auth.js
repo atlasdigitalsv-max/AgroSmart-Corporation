@@ -117,17 +117,27 @@ async function sendRealOTP(email, btn, originalText, context) {
 async function checkExistingSession() {
     const userId = sessionStorage.getItem('current_user_id');
     if (userId) {
+        // Wait for DB to be initialized if called early
+        if (!window.DB) {
+            setTimeout(checkExistingSession, 100);
+            return;
+        }
         const user = await window.DB.getUserById(parseInt(userId, 10));
         if (user) {
-            window.location.href = 'dashboard.html';
+            const currentPath = window.location.pathname.toLowerCase();
+            const fileName = currentPath.split('/').pop();
+            // Solo redirigir si estamos explícitamente en la página de inicio/login
+            if (fileName === 'index.html' || fileName === '') {
+                window.location.href = 'dashboard.html';
+            }
         } else {
             sessionStorage.removeItem('current_user_id');
         }
     }
 }
-checkExistingSession();
 
 document.addEventListener('DOMContentLoaded', async () => {
+    checkExistingSession();
 
     // Popula países en el registro
     const countrySelect = document.getElementById('register-country');

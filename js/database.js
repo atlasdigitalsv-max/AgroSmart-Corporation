@@ -1074,18 +1074,29 @@ class Database {
             throw new Error("Los Creadores Globales no tienen potestad de crear fichas, su rol es resolver incidencias escaladas.");
         }
 
+        const currentUser = window.AuthObj && window.AuthObj.currentUser ? window.AuthObj.currentUser : null;
+        let initialTarget = 'ministry_admin';
+        if (currentUser && currentUser.org_id) {
+            initialTarget = 'org_admin';
+        }
+
         const payload = {
             caller_id: String(reportObj.caller_id || 'guest'),
             caller_name: reportObj.caller_name || 'Usuario',
-            caller_email: reportObj.caller_email || (window.AuthObj && window.AuthObj.currentUser ? window.AuthObj.currentUser.email : ''),
+            caller_email: reportObj.caller_email || (currentUser ? currentUser.email : ''),
             caller_role: reportObj.caller_role || 'farmer',
-            target_role: reportObj.target_role || 'ministry_admin',
+            target_role: initialTarget,
             country: reportObj.country || 'Global',
+            org_id: currentUser ? currentUser.org_id : null,
             subject: reportObj.subject || 'Asistencia Técnica',
             description: reportObj.description || '',
             status: 'open',
-            is_escalated: reportObj.is_escalated || false,
-            room_name: reportObj.room_name || 'AgroSmart_Room_' + Date.now(),
+            is_escalated: false,
+            requires_video: reportObj.requires_video || false,
+            room_name: reportObj.requires_video ? (reportObj.room_name || 'AgroSmart_Room_' + Date.now()) : null,
+            assigned_to: null,
+            assigned_at: null,
+            history: [{ action: 'created', by: currentUser ? currentUser.id : 'guest', timestamp: new Date().toISOString() }],
             created_at: new Date().toISOString()
         };
 
@@ -1151,26 +1162,68 @@ class Database {
 
         // Lógica de filtrado según roles estrictos solicitada por el usuario:
         const role = currentUser.role || 'farmer';
+        
+        // Si el usuario quiere ver TODO el historial, podemos saltar el filtro de `assigned_to`
+        // Por ahora mantenemos la lógica de que un caso asignado a alguien desaparece de los demás
+        // Solo mostraremos si `assigned_to` es null, o si es igual a currentUser.id, O si currentUser fue el creador.
+        
+        const isAssignedToMeOrUnassigned = (r) => {
+            return !r.assigned_to || String(r.assigned_to) === String(currentUser.id) || String(r.caller_id) === String(currentUser.id);
+        };
+
         if (role === 'global_owner' || currentUser.is_superuser) {
-            // "los dueños no podrán ver esas fichas, lógicamente solamente si los administradores hacen un escalamiento de problema Ya que ellos no pueden solucionar ahí. Sí lo podrán ver los administradores globales"
-            return allReports.filter(r => r.target_role === 'global_owner' || r.is_escalated === true || String(r.caller_id) === String(currentUser.id));
+            return allReports.filter(r => (r.target_role === 'global_owner' || r.is_escalated === true) && isAssignedToMeOrUnassigned(r));
         } else if (role === 'ministry_admin') {
-            // Admins del ministerio ven las fichas de agricultores y cooperativas dirigidas a ellos en su país, o creadas/escaladas por ellos
-            return allReports.filter(r => r.target_role === 'ministry_admin' || String(r.caller_id) === String(currentUser.id));
+            return allReports.filter(r => r.target_role === 'ministry_admin' && String(r.country) === String(currentUser.country_id || r.country) && isAssignedToMeOrUnassigned(r));
+        } else if (role === 'org_admin') {
+            return allReports.filter(r => r.target_role === 'org_admin' && String(r.org_id) === String(currentUser.org_id) && isAssignedToMeOrUnassigned(r));
         } else {
             // Agricultores o miembros de cooperativas solo ven sus propias fichas
             return allReports.filter(r => String(r.caller_id) === String(currentUser.id));
         }
     }
 
+    async assignVideocallReport(reportId, adminUser) {
+        return await this.updateVideocallReport(reportId, {
+            assigned_to: adminUser.id,
+            attended_by_name: adminUser.full_name || adminUser.email,
+            assigned_at: new Date().toISOString(),
+            status: 'in_progress',
+            _append_history: { action: 'assigned', by: adminUser.id, timestamp: new Date().toISOString() }
+        });
+    }
+
+    async escalateVideocallReport(reportId, adminUser) {
+        let newTarget = 'ministry_admin';
+        if (adminUser.role === 'ministry_admin') {
+            newTarget = 'global_owner';
+        }
+        return await this.updateVideocallReport(reportId, {
+            target_role: newTarget,
+            assigned_to: null,
+            assigned_at: null,
+            is_escalated: true,
+            status: 'open',
+            _append_history: { action: 'escalated', to: newTarget, by: adminUser.id, timestamp: new Date().toISOString() }
+        });
+    }
+
     async updateVideocallReport(reportId, updateData) {
-        if (updateData.is_escalated === true) {
+        const historyAction = updateData._append_history;
+        delete updateData._append_history;
+
+        if (updateData.is_escalated === true && !updateData.target_role) {
             updateData.target_role = 'global_owner';
         }
 
         let updated = null;
         if (this.supabase && navigator.onLine && !String(reportId).startsWith('local_')) {
             try {
+                // Fetch first to append history
+                const { data: current } = await this.supabase.from('videocall_reports').select('history').eq('id', reportId).single();
+                if (current && historyAction) {
+                    updateData.history = [...(current.history || []), historyAction];
+                }
                 const { data, error } = await this.supabase
                     .from('videocall_reports')
                     .update(updateData)
@@ -1188,6 +1241,9 @@ class Database {
             if (db.videocall_reports) {
                 const index = db.videocall_reports.findIndex(r => String(r.id) === String(reportId));
                 if (index !== -1) {
+                    if (historyAction) {
+                        updateData.history = [...(db.videocall_reports[index].history || []), historyAction];
+                    }
                     db.videocall_reports[index] = { ...db.videocall_reports[index], ...updateData };
                     this.saveLocalDB(db);
                     updated = db.videocall_reports[index];

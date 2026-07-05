@@ -360,10 +360,10 @@
                                 </div>
                             </div>
 
-                            <div class="mb-3">
+                            <div class="mb-3" style="display: none;">
                                 <label class="form-label small fw-bold text-muted">Dirigido a (Destinatario del Caso)</label>
                                 <select id="rep-target" class="form-select rounded-3 fw-bold text-primary">
-                                    <!-- Llenado dinámicamente según rol -->
+                                    <!-- Llenado dinámicamente según rol, pero ahora oculto porque es automático -->
                                 </select>
                             </div>
 
@@ -382,13 +382,20 @@
 
                             <div class="mb-4">
                                 <label class="form-label small fw-bold text-muted">Descripción Detallada del Requerimiento</label>
-                                <textarea id="rep-desc" class="form-control rounded-3" rows="4" placeholder="Explique con detalle su consulta o situación. Si requiere una videollamada inmediata, indíquelo aquí..." required></textarea>
+                                <textarea id="rep-desc" class="form-control rounded-3" rows="4" placeholder="Explique con detalle su consulta o situación..." required></textarea>
+                            </div>
+
+                            <div class="mb-4 form-check">
+                                <input type="checkbox" class="form-check-input" id="rep-requires-video">
+                                <label class="form-check-label small fw-bold text-dark" for="rep-requires-video">
+                                    🎥 Solicitar Videollamada (Jitsi) para asistencia técnica en vivo
+                                </label>
                             </div>
 
                             <div class="d-flex justify-content-end gap-2">
                                 <button type="button" onclick="switchSubTab('history')" class="btn btn-light px-4 py-2 rounded-pill fw-bold">Ver Mis Fichas</button>
                                 <button type="submit" class="btn btn-primary px-5 py-2 rounded-pill fw-bold shadow-sm d-flex align-items-center gap-2">
-                                    <i class="bi bi-send-fill"></i> Enviar Ficha e Iniciar Sala P2P
+                                    <i class="bi bi-send-fill"></i> Crear Ficha
                                 </button>
                             </div>
                         </form>
@@ -558,14 +565,6 @@
             if (currentUser.role === 'global_owner' || currentUser.is_superuser) {
                 if (creatorNotice) creatorNotice.style.display = 'block';
                 if (formWrapper) formWrapper.style.display = 'none';
-            } else if (currentUser.role === 'ministry_admin') {
-                if (targetSelect) {
-                    targetSelect.innerHTML = `<option value="global_owner">Creadores Globales (Atlas Digital / Soporte L3)</option>`;
-                }
-            } else {
-                if (targetSelect) {
-                    targetSelect.innerHTML = `<option value="ministry_admin">Administrador de Ministerio (Soporte País L2)</option>`;
-                }
             }
         }
 
@@ -613,11 +612,11 @@
 
             const subject = document.getElementById('rep-subject').value;
             const desc = document.getElementById('rep-desc').value;
-            const target = document.getElementById('rep-target').value;
+            const requiresVideo = document.getElementById('rep-requires-video').checked;
 
             Swal.fire({
-                title: 'Generando Ficha Corporativa...',
-                text: 'Registrando en base de datos y notificando al soporte de tu país.',
+                title: 'Generando Ficha...',
+                text: 'Registrando en base de datos y enrutando...',
                 allowOutsideClick: false,
                 didOpen: () => Swal.showLoading()
             });
@@ -628,30 +627,35 @@
                     caller_name: currentUser.full_name || currentUser.email,
                     caller_email: currentUser.email || '',
                     caller_role: currentUser.role,
-                    target_role: target,
                     country: currentUser.country_id || 'Global',
                     subject: subject,
-                    description: desc
+                    description: desc,
+                    requires_video: requiresVideo
                 };
 
                 const newReport = await window.DB.createVideocallReport(reportPayload);
 
-                Swal.fire({
-                    icon: 'success',
-                    title: '¡Ficha # ' + String(newReport.id).slice(-6) + ' Creada!',
-                    html: `
-                        <p class="text-muted small">Tu reporte se ha registrado con un SLA máximo de <strong>72 horas</strong>. Se ha notificado al equipo de soporte.</p>
-                        <div class="alert alert-success small text-start">
+                let successHtml = `<p class="text-muted small">Tu reporte se ha registrado con un SLA máximo de <strong>72 horas</strong>. Se ha notificado al equipo correspondiente.</p>`;
+                
+                if (requiresVideo) {
+                    successHtml += `
+                        <div class="alert alert-success small text-start mt-2">
                             <strong>Sala asignada:</strong> ${newReport.room_name}<br>
                             <em>Puedes entrar a la sala de videollamada satelital ahora o esperar al administrador.</em>
                         </div>
-                    `,
+                    `;
+                }
+
+                Swal.fire({
+                    icon: 'success',
+                    title: '¡Ficha # ' + String(newReport.id).slice(-6) + ' Creada!',
+                    html: successHtml,
                     showCancelButton: true,
-                    confirmButtonText: '🎥 Entrar a Sala P2P Ahora',
-                    cancelButtonText: '📋 Ver Listado de Fichas',
+                    confirmButtonText: requiresVideo ? '🎥 Entrar a Sala P2P Ahora' : '📋 Ver Mis Fichas',
+                    cancelButtonText: 'Cerrar',
                     confirmButtonColor: '#10b981'
                 }).then((res) => {
-                    if (res.isConfirmed) {
+                    if (res.isConfirmed && requiresVideo) {
                         joinRoom(newReport.room_name, newReport.subject);
                     } else {
                         switchSubTab('history');
@@ -659,6 +663,7 @@
                 });
 
                 document.getElementById('rep-desc').value = '';
+                document.getElementById('rep-requires-video').checked = false;
             } catch (err) {
                 Swal.fire('Error', 'No se pudo crear la ficha: ' + err.message, 'error');
             }
@@ -701,46 +706,62 @@
                             statusHtml = '<span class="badge-status badge-status-critical animate__animated animate__pulse animate__infinite">🚨 CRÍTICA (> 72h)</span>';
                         }
 
-                        let targetTxt = 'Ministerio (País)';
-                        if (r.target_role === 'global_owner') targetTxt = 'Creadores Globales';
+                        let targetTxt = 'Gobierno';
+                        if (r.target_role === 'global_owner') targetTxt = 'AgroSmart Corp';
+                        if (r.target_role === 'org_admin') targetTxt = 'Cooperativa';
                         if (r.is_escalated) targetTxt += ' (⚡ Escalado)';
 
                         // Botones de acción adicionales para Admins y Creadores
                         let adminButtons = '';
-                        if (isAdminOrOwner && r.status !== 'resolved' && r.status !== 'closed') {
+                        const isFarmer = !isAdminOrOwner && currentUser.role !== 'org_admin';
+                        const isAdminView = isAdminOrOwner || currentUser.role === 'org_admin';
+                        
+                        if (isAdminView && !r.assigned_to && r.status !== 'resolved' && r.status !== 'closed' && String(r.caller_id) !== String(currentUser.id)) {
                             adminButtons += `
-                                <button onclick="sendCallAlertEmail('${r.id}', '${(r.caller_name || 'Usuario').replace(/'/g, "")}', '${r.caller_email || ''}', '${(r.subject || 'Soporte').replace(/'/g, "")}')" class="btn-action-sm btn-action-gmail" title="Avisar por Gmail que estás esperando en sala (5-10 min)">
-                                    <i class="bi bi-envelope-check-fill"></i> Alerta Gmail (5-10m)
+                                <button onclick="takeTicket('${r.id}')" class="btn-action-sm btn-action-resolve" title="Tomar este caso">
+                                    <i class="bi bi-person-check-fill"></i> Tomar Caso
                                 </button>
                             `;
-                            if (currentUser.role === 'ministry_admin' && !r.is_escalated) {
+                        }
+
+                        if (isAdminView && r.status !== 'resolved' && r.status !== 'closed' && String(r.assigned_to) === String(currentUser.id)) {
+                            if (currentUser.role === 'org_admin' || currentUser.role === 'ministry_admin') {
                                 adminButtons += `
-                                    <button onclick="escalateTicket('${r.id}')" class="btn-action-sm btn-action-escalate" title="Escalar incidencia a Creadores Globales Atlas Digital">
+                                    <button onclick="escalateTicket('${r.id}')" class="btn-action-sm btn-action-escalate" title="Escalar incidencia al siguiente nivel">
                                         <i class="bi bi-arrow-up-right-circle-fill"></i> Escalar
                                     </button>
                                 `;
                             }
                         }
 
+                        let videoCallBtn = '';
+                        if (r.requires_video && (String(r.caller_id) === String(currentUser.id) || String(r.assigned_to) === String(currentUser.id))) {
+                            videoCallBtn = `<button onclick="joinRoom('${r.room_name}', '${(r.subject || '').replace(/'/g, "")}')" class="btn-action-sm btn-action-room" title="Entrar a Sala P2P">🎥 Sala</button>`;
+                        }
+
+                        const historyBtn = `<button onclick="viewTicketHistory('${r.id}')" class="btn-action-sm btn-action-gmail" title="Ver Historial"><i class="bi bi-clock-history"></i> Historial</button>`;
+                        const manageBtn = (isAdminView && String(r.assigned_to) === String(currentUser.id)) || (String(r.caller_id) === String(currentUser.id)) ? `<button onclick="openResolveModal('${r.id}', '${(r.subject || '').replace(/'/g, "")}')" class="btn-action-sm btn-action-resolve" title="Registrar Conclusión">📝 Gestionar</button>` : '';
+
                         const tr = document.createElement('tr');
                         tr.innerHTML = `
                             <td class="small text-muted fw-bold">${dateStr}</td>
                             <td>
-                                <div class="fw-bold text-dark">${r.subject || 'Sin asunto'}</div>
+                                <div class="fw-bold text-dark">${r.subject || 'Sin asunto'} ${r.requires_video ? '<i class="bi bi-camera-video-fill text-primary" title="Requiere videollamada"></i>' : ''}</div>
                                 <div class="small text-muted">${(r.description || '').slice(0, 55)}...</div>
                             </td>
                             <td><span class="badge bg-light text-dark border px-2 py-1">${r.caller_name || 'Usuario'}</span></td>
                             <td class="small fw-bold text-primary">${targetTxt}</td>
                             <td>${statusHtml}</td>
                             <td>
-                                <div class="small fw-bold text-success">${r.attended_by_name ? 'Atendido: ' + r.attended_by_name : 'Pendiente'}</div>
-                                <div class="small text-muted fst-italic">${r.resolution_notes || 'Sin conclusión'}</div>
+                                <div class="small fw-bold text-success">${r.assigned_to ? 'Asignado a: ' + (r.attended_by_name || 'Admin') : 'Pendiente Asignación'}</div>
+                                <div class="small text-muted fst-italic">${r.resolution_notes || ''}</div>
                             </td>
                             <td class="text-end">
                                 <div class="d-flex justify-content-end flex-wrap gap-1">
-                                    <button onclick="openResolveModal('${r.id}', '${(r.subject || '').replace(/'/g, "")}')" class="btn-action-sm btn-action-resolve" title="Registrar Conclusión">📝 Gestionar</button>
-                                    <button onclick="joinRoom('${r.room_name}', '${(r.subject || '').replace(/'/g, "")}')" class="btn-action-sm btn-action-room" title="Entrar a Sala P2P">🎥 Sala</button>
+                                    ${manageBtn}
+                                    ${videoCallBtn}
                                     ${adminButtons}
+                                    ${historyBtn}
                                 </div>
                             </td>
                         `;
@@ -912,10 +933,83 @@
             });
         };
 
+        window.takeTicket = async function (reportId) {
+            Swal.fire({
+                title: '¿Tomar este caso?',
+                text: 'Asignarás este caso a tu perfil y será tu responsabilidad resolverlo. Desaparecerá de la bandeja de otros administradores.',
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonText: 'Sí, Tomar Caso',
+                cancelButtonText: 'Cancelar',
+                confirmButtonColor: '#10b981'
+            }).then(async (res) => {
+                if (res.isConfirmed) {
+                    try {
+                        await window.DB.assignVideocallReport(reportId, currentUser);
+                        Swal.fire('¡Asignado!', 'El caso ha sido asignado a ti.', 'success');
+                        loadReports();
+                    } catch (e) {
+                        Swal.fire('Error', 'No se pudo tomar el caso: ' + e.message, 'error');
+                    }
+                }
+            });
+        };
+
+        window.viewTicketHistory = async function (reportId) {
+            try {
+                let reports = [];
+                if (window.DB && typeof window.DB.getVideocallReports === 'function') {
+                    reports = await window.DB.getVideocallReports(currentUser); // Includes the ones we can see
+                }
+                let report = reports.find(r => r.id == reportId);
+                if (!report && window.DB.supabase) {
+                    // Try to fetch specific if not in filtered list
+                    const { data } = await window.DB.supabase.from('videocall_reports').select('*').eq('id', reportId).single();
+                    if (data) report = data;
+                }
+                if (!report && window.DB.getLocalDB) {
+                    const localDB = window.DB.getLocalDB();
+                    report = localDB.videocall_reports?.find(r => r.id == reportId);
+                }
+
+                if (!report || !report.history || report.history.length === 0) {
+                    Swal.fire('Historial', 'No hay historial registrado para esta ficha.', 'info');
+                    return;
+                }
+
+                let historyHtml = '<ul class="list-group text-start shadow-sm mb-3">';
+                report.history.forEach(h => {
+                    const d = new Date(h.timestamp);
+                    const dateStr = d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                    let actionText = '';
+                    if (h.action === 'created') actionText = `📝 <strong>Creado</strong> por usuario ID: ${h.by}`;
+                    if (h.action === 'assigned') actionText = `👤 <strong>Asignado</strong> a Admin ID: ${h.by}`;
+                    if (h.action === 'escalated') actionText = `⚡ <strong>Escalado</strong> a nivel ${h.to} por Admin ID: ${h.by}`;
+                    
+                    historyHtml += `
+                        <li class="list-group-item bg-light border-0 mb-1 rounded">
+                            <div class="small text-muted mb-1"><i class="bi bi-clock"></i> ${dateStr}</div>
+                            <div class="fs-6">${actionText}</div>
+                        </li>
+                    `;
+                });
+                historyHtml += '</ul>';
+
+                Swal.fire({
+                    title: 'Historial de la Ficha # ' + String(reportId).slice(-6),
+                    html: historyHtml,
+                    confirmButtonText: 'Cerrar',
+                    confirmButtonColor: '#6c757d'
+                });
+            } catch (e) {
+                Swal.fire('Error', 'No se pudo cargar el historial: ' + e.message, 'error');
+            }
+        };
+
         window.escalateTicket = async function (reportId) {
             Swal.fire({
-                title: '¿Escalar ficha a Creadores Globales?',
-                text: 'Esta acción notificará al equipo corporativo Atlas Digital (Toño, Bryan, Neftaly, Adaly y Omar) para que intervengan en la solución.',
+                title: '¿Escalar ficha al siguiente nivel?',
+                text: 'Esta acción notificará al equipo correspondiente (Ministerio o Creadores Globales) para que intervengan en la solución.',
                 icon: 'warning',
                 showCancelButton: true,
                 confirmButtonText: '⚡ Sí, Escalar Ahora',
@@ -924,12 +1018,8 @@
             }).then(async (res) => {
                 if (res.isConfirmed) {
                     try {
-                        await window.DB.updateVideocallReport(reportId, {
-                            is_escalated: true,
-                            target_role: 'global_owner',
-                            updated_at: new Date().toISOString()
-                        });
-                        Swal.fire('¡Escalado!', 'El caso ha sido transferido al corporativo global y se ha enviado la notificación.', 'success');
+                        await window.DB.escalateVideocallReport(reportId, currentUser);
+                        Swal.fire('¡Escalado!', 'El caso ha sido escalado exitosamente.', 'success');
                         loadReports();
                     } catch (e) {
                         Swal.fire('Error', 'No se pudo escalar: ' + e.message, 'error');
