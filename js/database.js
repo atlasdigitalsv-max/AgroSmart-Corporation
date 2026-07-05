@@ -1120,6 +1120,7 @@ class Database {
                 if (!error && data) created = data;
             } catch(e) {
                 console.warn("[Offline/Supabase Error] Guardando ficha localmente", e);
+                window.showErrorModal('Error Base de Datos', 'Fallo al subir a Supabase: ' + (e.message || JSON.stringify(e)));
             }
         }
 
@@ -1148,11 +1149,12 @@ class Database {
             }
         }
 
-        if (allReports.length === 0) {
-            const db = this.getLocalDB();
-            if (db.videocall_reports) {
-                allReports = [...db.videocall_reports].sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
-            }
+        const db = this.getLocalDB();
+        if (db.videocall_reports && db.videocall_reports.length > 0) {
+            // Unir fichas locales con las de Supabase evitando duplicados por ID
+            const supabaseIds = new Set(allReports.map(r => String(r.id)));
+            const localOnly = db.videocall_reports.filter(r => !supabaseIds.has(String(r.id)));
+            allReports = [...allReports, ...localOnly].sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
         }
 
         // Calcular estado Crítico (72 horas sin resolver)
