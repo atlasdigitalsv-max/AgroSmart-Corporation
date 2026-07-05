@@ -79,10 +79,11 @@ window.AgroMapAdvanced = {
                     this.loadNASA('SMAP_L4_Volumetric_Soil_Moisture_Top_Layer', id);
                     break;
                 case 'temp':
-                    this.loadNASA('MODIS_Terra_Land_Surface_Temp_Day', id);
+                    this.loadNASA('MODIS_Terra_Land_Surface_Temp_Day', id, 3);
                     break;
                 case 'uv':
-                    this.loadNASA('SNPP_OMPS_UV_Aerosol_Index', id);
+                    // Used to visualize El Niño and heat (Sea Surface Temperature)
+                    this.loadNASA('GHRSST_L4_MUR_Sea_Surface_Temperature', id, 4);
                     break;
                 case 'snow':
                     this.loadNASA('MODIS_Terra_NDSI_Snow_Cover', id);
@@ -91,7 +92,7 @@ window.AgroMapAdvanced = {
                     this.loadNASA('MODIS_Terra_Thermal_Anomalies_All', id);
                     break;
                 case 'co':
-                    this.loadNASA('MOPITT_CO_Daily_Column', id);
+                    this.loadNASA('MOPITT_CO_Daily_Column', id, 3);
                     break;
                 case 'so2':
                     this.loadNASA('Aura_OMI_SO2_PBL', id);
@@ -100,7 +101,7 @@ window.AgroMapAdvanced = {
                     this.loadNASA('SNPP_OMPS_Aerosol_Index', id);
                     break;
                 case 'ozone':
-                    this.loadNASA('Aura_OMI_Ozone', id);
+                    this.loadNASA('Aura_OMI_Ozone', id, 3);
                     break;
                 case 'topo':
                     this.loadTopo();
@@ -196,9 +197,9 @@ window.AgroMapAdvanced = {
         this.layers['earthquakes'] = ds; // Track as active layer internally
     },
 
-    loadNASA: function(nasaLayerName, id) {
+    loadNASA: function(nasaLayerName, id, daysDelay = 2) {
         const d = new Date();
-        d.setDate(d.getDate() - 2); // Restar 2 días para asegurar que el satélite ya procesó la imagen
+        d.setDate(d.getDate() - daysDelay); // Restar días para asegurar que el satélite ya procesó la imagen
         const timeStr = d.toISOString().split('T')[0];
 
         const provider = new Cesium.WebMapServiceImageryProvider({
