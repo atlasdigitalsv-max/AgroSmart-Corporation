@@ -1076,8 +1076,17 @@ class Database {
 
         const currentUser = window.AuthObj && window.AuthObj.currentUser ? window.AuthObj.currentUser : null;
         let initialTarget = 'ministry_admin';
-        if (currentUser && currentUser.org_id) {
-            initialTarget = 'org_admin';
+        
+        if (currentUser) {
+            if (currentUser.role === 'org_admin') {
+                initialTarget = 'ministry_admin'; // Admins de cooperativa escalan sus propios problemas al ministerio
+            } else if (currentUser.role === 'ministry_admin') {
+                initialTarget = 'global_owner'; // Admins de ministerio escalan sus propios problemas a los dueños
+            } else if (currentUser.org_id) {
+                initialTarget = 'org_admin'; // Agricultores en cooperativa van a su admin de cooperativa
+            } else {
+                initialTarget = 'ministry_admin'; // Agricultores independientes van al ministerio
+            }
         }
 
         const payload = {
@@ -1172,11 +1181,11 @@ class Database {
         };
 
         if (role === 'global_owner' || currentUser.is_superuser) {
-            return allReports.filter(r => (r.target_role === 'global_owner' || r.is_escalated === true) && isAssignedToMeOrUnassigned(r));
+            return allReports.filter(r => ((r.target_role === 'global_owner' || r.is_escalated === true) && isAssignedToMeOrUnassigned(r)) || String(r.caller_id) === String(currentUser.id));
         } else if (role === 'ministry_admin') {
-            return allReports.filter(r => r.target_role === 'ministry_admin' && String(r.country) === String(currentUser.country_id || r.country) && isAssignedToMeOrUnassigned(r));
+            return allReports.filter(r => (r.target_role === 'ministry_admin' && String(r.country) === String(currentUser.country_id || r.country) && isAssignedToMeOrUnassigned(r)) || String(r.caller_id) === String(currentUser.id));
         } else if (role === 'org_admin') {
-            return allReports.filter(r => r.target_role === 'org_admin' && String(r.org_id) === String(currentUser.org_id) && isAssignedToMeOrUnassigned(r));
+            return allReports.filter(r => (r.target_role === 'org_admin' && String(r.org_id) === String(currentUser.org_id) && isAssignedToMeOrUnassigned(r)) || String(r.caller_id) === String(currentUser.id));
         } else {
             // Agricultores o miembros de cooperativas solo ven sus propias fichas
             return allReports.filter(r => String(r.caller_id) === String(currentUser.id));
