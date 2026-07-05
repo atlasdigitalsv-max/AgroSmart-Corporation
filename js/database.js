@@ -348,11 +348,13 @@ class Database {
                     avatar_url: profileData.avatar_url,
                     bio: profileData.bio
                 };
+                
                 if (profileData.phone !== undefined) updatePayload.phone = profileData.phone;
                 if (profileData.whatsapp !== undefined) updatePayload.whatsapp = profileData.whatsapp;
                 
-                const { error } = await this.supabase.from('users').update(updatePayload).eq('id', userId);
+                const { data, error } = await this.supabase.from('users').update(updatePayload).eq('id', userId).select();
                 if (error) throw new Error(error.message);
+                if (!data || data.length === 0) throw new Error("No se pudo actualizar el perfil en la nube. Revisa las políticas RLS de la tabla users.");
                 return;
             } catch(e) {
                 console.warn("[Offline] Fallback to local DB for updateUserProfile", e);
@@ -1076,7 +1078,7 @@ class Database {
             throw new Error("Los Creadores Globales no tienen potestad de crear fichas, su rol es resolver incidencias escaladas.");
         }
 
-        const currentUser = window.AuthObj && window.AuthObj.currentUser ? window.AuthObj.currentUser : null;
+        const currentUser = window.AuthObj ? await window.AuthObj.getCurrentUser() : null;
         let initialTarget = 'ministry_admin';
         
         if (currentUser) {
@@ -1186,9 +1188,9 @@ class Database {
         if (role === 'global_owner') {
             return allReports.filter(r => ((r.target_role === 'global_owner' || r.is_escalated === true) && isAssignedToMeOrUnassigned(r)) || String(r.caller_id) === String(currentUser.id));
         } else if (role === 'ministry_admin') {
-            return allReports.filter(r => (r.target_role === 'ministry_admin' && String(r.country) === String(currentUser.country_id || r.country) && isAssignedToMeOrUnassigned(r)) || String(r.caller_id) === String(currentUser.id));
+            return allReports.filter(r => r.target_role === 'ministry_admin' && String(r.country) === String(currentUser.country_id || r.country) && isAssignedToMeOrUnassigned(r));
         } else if (role === 'org_admin') {
-            return allReports.filter(r => (r.target_role === 'org_admin' && String(r.org_id) === String(currentUser.org_id) && isAssignedToMeOrUnassigned(r)) || String(r.caller_id) === String(currentUser.id));
+            return allReports.filter(r => r.target_role === 'org_admin' && String(r.org_id) === String(currentUser.org_id) && isAssignedToMeOrUnassigned(r));
         } else {
             // Agricultores o miembros de cooperativas solo ven sus propias fichas
             return allReports.filter(r => String(r.caller_id) === String(currentUser.id));

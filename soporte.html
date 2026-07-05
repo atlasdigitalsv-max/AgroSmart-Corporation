@@ -563,8 +563,13 @@
 
             // Regla Estricta para Creadores/Dueños Globales
             if (currentUser.role === 'global_owner') {
-                if (creatorNotice) creatorNotice.style.display = 'block';
-                if (formWrapper) formWrapper.style.display = 'none';
+                const btnCreate = document.getElementById('sub-tab-btn-create');
+                const btnRoom = document.getElementById('sub-tab-btn-room');
+                if (btnCreate) btnCreate.style.display = 'none';
+                if (btnRoom) btnRoom.style.display = 'none';
+                
+                // Cambiar automáticamente a la pestaña de historial/registro oficial
+                setTimeout(() => switchSubTab('history'), 50);
             }
         }
 
