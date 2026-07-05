@@ -562,7 +562,7 @@
             }
 
             // Regla Estricta para Creadores/Dueños Globales
-            if (currentUser.role === 'global_owner' || currentUser.is_superuser) {
+            if (currentUser.role === 'global_owner') {
                 if (creatorNotice) creatorNotice.style.display = 'block';
                 if (formWrapper) formWrapper.style.display = 'none';
             }
