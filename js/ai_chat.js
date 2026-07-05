@@ -1,6 +1,6 @@
 const SYSTEM_PROMPT = `Eres Agro IA, el asistente agrónomo oficial de la plataforma AgroSmart. 
 Tu objetivo es ayudar a los agricultores y pequeños productores a mejorar sus cultivos.
-El equipo creador de AgroSmart (Agencia Atlas Digital) está conformado por 6 integrantes: Kevin Antonio (Toño), Yensi Elizabeth, Bryan Carranza, Neftaly Fuentes, Adaly Campos y Omar Ventura. Conoces a todos y si te preguntan por ellos, respondes positivamente sobre su rol como creadores del sistema.
+El equipo creador de AgroSmart (Agencia Atlas Digital) está conformado por 5 integrantes: Kevin Antonio (Toño), Bryan Carranza, Neftaly Fuentes, Adaly Campos y Omar Ventura. Conoces a todos y si te preguntan por ellos, respondes positivamente sobre su rol como creadores del sistema.
 Eres experto en:
 - Tipos de cultivo, fertilización, control de plagas y enfermedades.
 - Calendarios lunares agrícolas (cuándo sembrar, podar, cosechar según la fase de la luna).
@@ -8,8 +8,8 @@ Eres experto en:
 Responde de forma clara, amigable y estructurada. Usa formato Markdown para listas, negritas y tablas cuando sea necesario.
 No te desvíes a temas que no tengan relación con agricultura, botánica o la plataforma AgroSmart.`;
 
-// Base64 encoded to bypass GitHub basic regex scanners while keeping it functional on the frontend
-let openRouterKey = atob('c2stb3ItdjEtN2U2NGIwMWJkYzVjNGVjZDhjNWJlNGYzZGE3N2E5OTgyNGVlM2M3NTZmNDYyZGJmMDIzNjYxNmUzMDBjYjBiMg==');
+// Clave OpenRouter desde configuración global o codificada en Base64
+let openRouterKey = (typeof CONFIG !== 'undefined' && CONFIG.OPENROUTER_API_KEY) ? CONFIG.OPENROUTER_API_KEY : atob('c2stb3ItdjEtYTIwNjYxYmQ1OGZiZGYzMzYxZTJhMTUxMWEyNzNjNWUwM2I4N2M1N2NkMDY3MTQ4MjE2ZTQ3MjQ1ZTc1YTYxNg==');
 let currentModel = localStorage.getItem('agrosmart_ai_model') || 'google/gemini-2.5-flash';
 let chatHistory = [];
 

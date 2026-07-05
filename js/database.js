@@ -129,7 +129,9 @@ class Database {
             suspended_by: null,
             full_name: userObj.full_name || null,
             avatar_url: userObj.avatar_url || null,
-            bio: userObj.bio || null
+            bio: userObj.bio || null,
+            phone: userObj.phone || null,
+            whatsapp: userObj.whatsapp || userObj.phone || null
         };
 
         if (this.supabase) {
@@ -341,11 +343,15 @@ class Database {
     async updateUserProfile(userId, profileData) {
         if (this.supabase) {
             try {
-                const { error } = await this.supabase.from('users').update({
+                const updatePayload = {
                     full_name: profileData.full_name,
                     avatar_url: profileData.avatar_url,
                     bio: profileData.bio
-                }).eq('id', userId);
+                };
+                if (profileData.phone !== undefined) updatePayload.phone = profileData.phone;
+                if (profileData.whatsapp !== undefined) updatePayload.whatsapp = profileData.whatsapp;
+                
+                const { error } = await this.supabase.from('users').update(updatePayload).eq('id', userId);
                 if (error) throw new Error(error.message);
                 return;
             } catch(e) {
@@ -899,7 +905,7 @@ class Database {
                 const { data: existing } = await this.supabase.from('friendships')
                     .select('*')
                     .or(`and(user_id1.eq.${userId1},user_id2.eq.${userId2}),and(user_id1.eq.${userId2},user_id2.eq.${userId1})`)
-                    .single();
+                    .maybeSingle();
                 if (existing) throw new Error("Ya existe una relación con este usuario");
 
                 const { error } = await this.supabase.from('friendships').insert([{
@@ -988,21 +994,102 @@ class Database {
         }
     }
 
+    // --- Encuestas Interactivas (Polls) ---
+    async getPollVotes(postId) {
+        if (this.supabase && navigator.onLine) {
+            try {
+                const { data, error } = await this.supabase
+                    .from('post_poll_votes')
+                    .select('*, users(full_name, avatar_url, email)')
+                    .eq('post_id', postId);
+                if (!error) return data || [];
+            } catch(e) { console.warn("No poll table yet", e); }
+        }
+        const db = this.getLocalDB();
+        if (!db.poll_votes) return [];
+        return db.poll_votes.filter(v => v.post_id === postId);
+    }
+
+    async votePoll(postId, userId, optionIndex) {
+        if (this.supabase && navigator.onLine) {
+            try {
+                const { error } = await this.supabase
+                    .from('post_poll_votes')
+                    .insert([{ post_id: postId, user_id: userId, option_index: optionIndex }]);
+                if (error) throw new Error(error.message);
+                return;
+            } catch(e) { throw e; }
+        }
+        const db = this.getLocalDB();
+        if (!db.poll_votes) db.poll_votes = [];
+        if (db.poll_votes.find(v => v.post_id === postId && v.user_id === userId)) {
+            throw new Error("Ya has votado en esta encuesta");
+        }
+        db.poll_votes.push({
+            id: Date.now(),
+            post_id: postId,
+            user_id: userId,
+            option_index: optionIndex,
+            created_at: new Date().toISOString()
+        });
+        this.saveLocalDB(db);
+    }
+
     // --- Soporte Prioritario y Videollamadas: Fichas de Reporte ---
+    async notifyTicketEmail(report, type = 'new') {
+        if (typeof emailjs === 'undefined' || typeof CONFIG === 'undefined') return;
+        try {
+            let toEmail = report.caller_email || 'soporte@agrosmart.global';
+            let subject = '🚨 NUEVA FICHA DE SOPORTE - AGROSMART';
+            let msg = `Se ha generado una nueva ficha de soporte técnica. Asunto: ${report.subject}. Descripción: ${report.description}. Solicitante: ${report.caller_name} (${report.caller_role}).`;
+
+            if (type === 'call_alert') {
+                toEmail = report.caller_email || 'usuario@gmail.com';
+                subject = '🎥 ¡ADMINISTRADOR EN SALA DE VIDEOLLAMADA - AGROSMART!';
+                msg = `Hola ${report.caller_name}, el administrador/creador ha ingresado a la sala de videollamada para atender tu caso (${report.subject}). Tienes un lapso de 5 a 10 minutos para entrar al panel de Soporte y conectarte, de lo contrario la sesión se cerrará y se te dará seguimiento por correo.`;
+            } else if (type === 'escalated' || report.target_role === 'global_owner') {
+                toEmail = 'creadores.atlasdigital@agrosmart.global';
+                subject = '🚨 [ESCALAMIENTO GLOBAL] FICHA DIRIGIDA A CREADORES AGROSMART';
+                msg = `Un Administrador de Ministerio ha generado o escalado una ficha de problema para resolución de los Creadores Globales (Atlas Digital). Asunto: ${report.subject}. Descripción: ${report.description}.`;
+            } else if (report.target_role === 'ministry_admin') {
+                toEmail = 'admin.ministerio@agrosmart.global';
+                subject = '🚨 [ALERTA PAÍS] NUEVO REPORTE DE AGRICULTOR / COOPERATIVA';
+                msg = `Se ha generado una ficha de reporte en su jurisdicción. Solicitante: ${report.caller_name}. Recuerde que el tiempo máximo de respuesta es de 72 horas.`;
+            }
+
+            if (CONFIG.EMAILJS_SERVICE_ID && CONFIG.EMAILJS_TEMPLATE_ID && CONFIG.EMAILJS_PUBLIC_KEY) {
+                emailjs.send(CONFIG.EMAILJS_SERVICE_ID, CONFIG.EMAILJS_TEMPLATE_ID, {
+                    to_email: toEmail,
+                    from_name: 'AgroSmart Soporte Satelital',
+                    subject: subject,
+                    message: msg
+                }, CONFIG.EMAILJS_PUBLIC_KEY).catch(e => console.warn("EmailJS send error:", e));
+            }
+        } catch(e) { console.warn("Error en notificación EmailJS:", e); }
+    }
+
     async createVideocallReport(reportObj) {
+        // Regla estricta: Los creadores/dueños globales no pueden generar fichas
+        if (reportObj.caller_role === 'global_owner') {
+            throw new Error("Los Creadores Globales no tienen potestad de crear fichas, su rol es resolver incidencias escaladas.");
+        }
+
         const payload = {
             caller_id: String(reportObj.caller_id || 'guest'),
             caller_name: reportObj.caller_name || 'Usuario',
+            caller_email: reportObj.caller_email || (window.AuthObj && window.AuthObj.currentUser ? window.AuthObj.currentUser.email : ''),
             caller_role: reportObj.caller_role || 'farmer',
             target_role: reportObj.target_role || 'ministry_admin',
             country: reportObj.country || 'Global',
             subject: reportObj.subject || 'Asistencia Técnica',
             description: reportObj.description || '',
             status: 'open',
+            is_escalated: reportObj.is_escalated || false,
             room_name: reportObj.room_name || 'AgroSmart_Room_' + Date.now(),
             created_at: new Date().toISOString()
         };
 
+        let created = null;
         if (this.supabase && navigator.onLine) {
             try {
                 const { data, error } = await this.supabase
@@ -1010,57 +1097,78 @@ class Database {
                     .insert([payload])
                     .select()
                     .single();
-                if (!error && data) return data;
+                if (!error && data) created = data;
             } catch(e) {
                 console.warn("[Offline/Supabase Error] Guardando ficha localmente", e);
             }
         }
 
-        const db = this.getLocalDB();
-        if (!db.videocall_reports) db.videocall_reports = [];
-        const newReport = { id: 'local_' + Date.now() + '_' + Math.floor(Math.random()*1000), ...payload };
-        db.videocall_reports.push(newReport);
-        this.saveLocalDB(db);
-        return newReport;
+        if (!created) {
+            const db = this.getLocalDB();
+            if (!db.videocall_reports) db.videocall_reports = [];
+            const newReport = { id: 'local_' + Date.now() + '_' + Math.floor(Math.random()*1000), ...payload };
+            db.videocall_reports.push(newReport);
+            this.saveLocalDB(db);
+            created = newReport;
+        }
+
+        // Notificar por EmailJS al destinario
+        this.notifyTicketEmail(created, 'new');
+        return created;
     }
 
     async getVideocallReports(currentUser = null) {
+        let allReports = [];
         if (this.supabase && navigator.onLine) {
             try {
-                let query = this.supabase.from('videocall_reports').select('*').order('created_at', { ascending: false });
-                
-                if (currentUser) {
-                    if (currentUser.role === 'global_owner' || currentUser.is_superuser) {
-                        // Dueños Globales ven todas las fichas o aquellas dirigidas a 'global_owner' o sus propias llamadas
-                    } else if (currentUser.role === 'ministry_admin') {
-                        // Admins del ministerio ven fichas de su país/jurisdicción, o donde target_role es ministry_admin, o sus propias llamadas
-                        query = query.or(`target_role.eq.ministry_admin,caller_id.eq.${currentUser.id}`);
-                    } else {
-                        // Agricultores o admins de cooperativa ven únicamente sus propias fichas
-                        query = query.eq('caller_id', String(currentUser.id));
-                    }
-                }
-
-                const { data, error } = await query;
-                if (!error && data) return data;
+                const { data, error } = await this.supabase.from('videocall_reports').select('*').order('created_at', { ascending: false });
+                if (!error && data) allReports = data;
             } catch(e) {
                 console.warn("[Offline/Supabase Error] Leyendo fichas locales", e);
             }
         }
 
-        const db = this.getLocalDB();
-        if (!db.videocall_reports) return [];
-        let reports = [...db.videocall_reports].sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
-        
-        if (!currentUser) return reports;
-        if (currentUser.role === 'global_owner' || currentUser.is_superuser) return reports;
-        if (currentUser.role === 'ministry_admin') {
-            return reports.filter(r => r.target_role === 'ministry_admin' || String(r.caller_id) === String(currentUser.id));
+        if (allReports.length === 0) {
+            const db = this.getLocalDB();
+            if (db.videocall_reports) {
+                allReports = [...db.videocall_reports].sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
+            }
         }
-        return reports.filter(r => String(r.caller_id) === String(currentUser.id));
+
+        // Calcular estado Crítico (72 horas sin resolver)
+        const now = new Date();
+        allReports = allReports.map(r => {
+            const created = new Date(r.created_at);
+            const hours = (now - created) / (1000 * 60 * 60);
+            if (r.status !== 'resolved' && r.status !== 'closed' && hours >= 72) {
+                r.is_critical = true;
+                r.status = 'critical';
+            }
+            return r;
+        });
+
+        if (!currentUser) return allReports;
+
+        // Lógica de filtrado según roles estrictos solicitada por el usuario:
+        const role = currentUser.role || 'farmer';
+        if (role === 'global_owner' || currentUser.is_superuser) {
+            // "los dueños no podrán ver esas fichas, lógicamente solamente si los administradores hacen un escalamiento de problema Ya que ellos no pueden solucionar ahí. Sí lo podrán ver los administradores globales"
+            return allReports.filter(r => r.target_role === 'global_owner' || r.is_escalated === true || String(r.caller_id) === String(currentUser.id));
+        } else if (role === 'ministry_admin') {
+            // Admins del ministerio ven las fichas de agricultores y cooperativas dirigidas a ellos en su país, o creadas/escaladas por ellos
+            return allReports.filter(r => r.target_role === 'ministry_admin' || String(r.caller_id) === String(currentUser.id));
+        } else {
+            // Agricultores o miembros de cooperativas solo ven sus propias fichas
+            return allReports.filter(r => String(r.caller_id) === String(currentUser.id));
+        }
     }
 
     async updateVideocallReport(reportId, updateData) {
+        if (updateData.is_escalated === true) {
+            updateData.target_role = 'global_owner';
+        }
+
+        let updated = null;
         if (this.supabase && navigator.onLine && !String(reportId).startsWith('local_')) {
             try {
                 const { data, error } = await this.supabase
@@ -1069,22 +1177,84 @@ class Database {
                     .eq('id', reportId)
                     .select()
                     .single();
-                if (!error && data) return data;
+                if (!error && data) updated = data;
             } catch(e) {
                 console.warn("[Offline/Supabase Error] Actualizando ficha localmente", e);
             }
         }
 
-        const db = this.getLocalDB();
-        if (db.videocall_reports) {
-            const index = db.videocall_reports.findIndex(r => String(r.id) === String(reportId));
-            if (index !== -1) {
-                db.videocall_reports[index] = { ...db.videocall_reports[index], ...updateData };
-                this.saveLocalDB(db);
-                return db.videocall_reports[index];
+        if (!updated) {
+            const db = this.getLocalDB();
+            if (db.videocall_reports) {
+                const index = db.videocall_reports.findIndex(r => String(r.id) === String(reportId));
+                if (index !== -1) {
+                    db.videocall_reports[index] = { ...db.videocall_reports[index], ...updateData };
+                    this.saveLocalDB(db);
+                    updated = db.videocall_reports[index];
+                }
             }
         }
-        return null;
+
+        if (updated && (updateData.is_escalated || updateData.status === 'resolved')) {
+            this.notifyTicketEmail(updated, updateData.is_escalated ? 'escalated' : 'resolved');
+        }
+        return updated;
+    }
+
+    // --- AGRORED FORUMS & COMMUNITIES ---
+
+    async getCommunities() {
+        if (this.supabase) {
+            const { data, error } = await this.supabase.from('communities').select('*');
+            if (error) console.warn("Supabase warning:", error);
+            return data || [];
+        }
+        return [];
+    }
+
+    async getCommunityMembersCount(communityId) {
+        if (this.supabase) {
+            const { count, error } = await this.supabase
+                .from('community_members')
+                .select('*', { count: 'exact', head: true })
+                .eq('community_id', communityId);
+            if (error) console.warn("Supabase warning:", error);
+            return count || 0;
+        }
+        return 0;
+    }
+
+    async joinCommunity(communityId, userId) {
+        if (this.supabase) {
+            const { error } = await this.supabase.from('community_members').insert({ community_id: communityId, user_id: userId });
+            if (error && error.code !== '23505') throw error; // Ignore duplicate key
+            return true;
+        }
+        return true;
+    }
+
+    async getForums() {
+        if (this.supabase) {
+            const { data, error } = await this.supabase.from('forums').select('*, users(*)').order('created_at', { ascending: false });
+            if (error) console.warn("Supabase warning:", error);
+            return data || [];
+        }
+        return [];
+    }
+
+    async createForum(name, description, createdBy) {
+        if (this.supabase) {
+            const { data, error } = await this.supabase.from('forums').insert({ name, description, created_by: createdBy }).select().single();
+            if (error) throw error;
+            return data;
+        }
+        throw new Error("Modo offline no soporta creación de foros aún.");
+    }
+
+    async getForumPostsCount(forumId) {
+        // En el futuro los posts pueden estar vinculados al forum_id. 
+        // Por ahora, simulamos un contador dinámico.
+        return Math.floor(Math.random() * 50) + 1;
     }
 }
 

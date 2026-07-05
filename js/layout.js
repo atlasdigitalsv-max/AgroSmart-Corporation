@@ -1,3 +1,13 @@
+// Prevenir error 404 de favicon.ico en todos los navegadores
+if (typeof document !== 'undefined' && !document.querySelector('link[rel="icon"]')) {
+    try {
+        const fav = document.createElement('link');
+        fav.rel = 'icon';
+        fav.href = 'data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌱</text></svg>';
+        document.head.appendChild(fav);
+    } catch(e) {}
+}
+
 // Universal Console & Promise Error Silencer for Clean 0-Error Experience
 window.addEventListener('unhandledrejection', function(event) {
     if (event && event.reason) {
@@ -78,9 +88,6 @@ const NAVBAR_TEMPLATE = `
             <i class="bi bi-globe-americas me-2"></i> AgroRed
             <span id="notificationBadge" class="notification-bubble" style="display:none;">0</span>
         </a>
-        <a href="calls.html" class="btn-secondary text-nowrap" data-page="calls" id="nav-calls-link" style="display: none;">
-            <i class="bi bi-camera-video me-2"></i> Videollamadas
-        </a>
         <a href="plan_dashboard.html" class="btn-secondary text-nowrap" id="nav-plan-link" data-page="plan" style="display: none;">
             <i class="bi bi-activity me-2"></i> Mi Plan
         </a>
@@ -94,7 +101,7 @@ const NAVBAR_TEMPLATE = `
             <i class="bi bi-info-circle me-2"></i> Nosotros
         </a>
         <a href="soporte.html" class="btn-secondary text-nowrap" data-page="soporte">
-            <i class="bi bi-patch-question me-2"></i> Soporte
+            <i class="bi bi-headset me-2"></i> Soporte & Videollamadas
         </a>
         <a href="manual_usuario.html" class="btn-secondary text-nowrap" data-page="manual">
             <i class="bi bi-book-half me-2" style="color: #ffd700;"></i> Manual
@@ -186,13 +193,11 @@ async function renderNavbar(activePage) {
     // Navigation items that require login
     const protectedItems = container.querySelectorAll('[data-page="catalog"], [data-page="crop_create"], [data-page="moon"], [data-page="contact"]');
     const agroredLink = container.querySelector('[data-page="agrored"]');
-    const callsLink = container.querySelector('#nav-calls-link');
     const planLink = container.querySelector('#nav-plan-link');
     const aiLink = container.querySelector('#nav-ai-link') || container.querySelector('[data-page="ai_chat"]');
     
     // Hide all role-based items by default to prevent flicker
     if (adminLink) adminLink.style.display = 'none';
-    if (callsLink) callsLink.style.display = 'none';
     if (planLink) planLink.style.display = 'none';
     if (aiLink) aiLink.style.display = 'none';
     if (agroredLink) agroredLink.style.display = 'none';
@@ -241,14 +246,8 @@ async function renderNavbar(activePage) {
             const countries = await window.DB.getCountries();
             const country = countries.find(c => String(c.id) === String(user.country_id));
             currentPlan = country ? (country.plan || 'none').toLowerCase() : 'none';
-        } catch(e) { console.warn("Plan check failed", e); }
+        } catch(e) { }
 
-        // Calls Visibility (Diamante, Esmeralda)
-        if (callsLink) {
-            const hasCallPlan = ['diamante', 'esmeralda'].includes(currentPlan);
-            callsLink.style.setProperty('display', (user.role === 'global_owner' || hasCallPlan) ? 'flex' : 'none', 'important');
-        }
-        
         // AgroRed Visibility (Platinium, Diamante, Esmeralda)
         if (agroredLink) {
             const hasAgroRedPlan = ['platinium', 'diamante', 'esmeralda'].includes(currentPlan);
@@ -264,7 +263,6 @@ async function renderNavbar(activePage) {
         // Hide protected items for guests
         protectedItems.forEach(item => item.style.display = 'none');
         if (adminLink) adminLink.style.display = 'none';
-        if (callsLink) callsLink.style.display = 'none';
         if (planLink) planLink.style.display = 'none';
         if (aiLink) aiLink.style.display = 'none';
         if (agroredLink) agroredLink.style.display = 'none';
@@ -577,27 +575,36 @@ window.openProfileModal = async function() {
     let base64Image = user.avatar_url || '';
 
     const { value: formValues } = await Swal.fire({
-        title: 'Mi Perfil (AgroRed)',
+        title: '<div style="font-size:1.4rem; font-weight:700; color:var(--text-main); margin-bottom: 5px;">Editar Perfil</div><div style="font-size:0.9rem; font-weight:400; color:var(--text-muted);">Configuración de cuenta y notificaciones</div>',
         html: `
-            <div class="mb-3 text-start">
-                <label class="form-label small fw-bold">Nombre Completo</label>
-                <input id="swal-profile-name" class="swal2-input m-0 w-100" value="${user.full_name || ''}" placeholder="Tu nombre...">
-            </div>
-            <div class="mb-3 text-start">
-                <label class="form-label small fw-bold">Biografía / ¿A qué te dedicas?</label>
-                <textarea id="swal-profile-bio" class="swal2-textarea m-0 w-100 p-2" rows="2" placeholder="Soy agricultor experto en...">${user.bio || ''}</textarea>
-            </div>
-            <div class="mb-3 text-start">
-                <label class="form-label small fw-bold">Foto de Perfil</label>
-                <input type="file" id="swal-profile-file" class="form-control" accept="image/*">
-                <div class="small text-muted mt-1">Sube una imagen desde tu dispositivo.</div>
+            <div style="text-align: left; margin-top: 15px;">
+                <div class="mb-3">
+                    <label class="form-label small fw-bold" style="color:var(--text-muted);">Nombre Completo</label>
+                    <input id="swal-profile-name" class="form-control" style="border-radius: 8px; padding: 10px 15px; border: 1px solid rgba(0,0,0,0.1);" value="${user.full_name || ''}" placeholder="Tu nombre...">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label small fw-bold" style="color:var(--text-muted);">Teléfono / WhatsApp</label>
+                    <input id="swal-profile-phone" class="form-control" style="border-radius: 8px; padding: 10px 15px; border: 1px solid rgba(0,0,0,0.1);" value="${user.phone || user.whatsapp || ''}" placeholder="+503 7000 0000">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label small fw-bold" style="color:var(--text-muted);">Biografía / Ocupación</label>
+                    <textarea id="swal-profile-bio" class="form-control" style="border-radius: 8px; padding: 10px 15px; border: 1px solid rgba(0,0,0,0.1); resize: none;" rows="2" placeholder="Agricultor, Agrónomo...">${user.bio || ''}</textarea>
+                </div>
+                <div class="mb-2">
+                    <label class="form-label small fw-bold" style="color:var(--text-muted);">Foto de Perfil</label>
+                    <input type="file" id="swal-profile-file" class="form-control" style="border-radius: 8px; font-size: 0.9rem;" accept="image/*">
+                </div>
             </div>
         `,
         focusConfirm: false,
         showCancelButton: true,
-        confirmButtonText: 'Guardar Perfil',
+        confirmButtonText: 'Guardar Cambios',
         cancelButtonText: 'Cancelar',
         confirmButtonColor: 'var(--primary-color)',
+        cancelButtonColor: '#e2e8f0',
+        customClass: {
+            cancelButton: 'text-dark fw-bold'
+        },
         didOpen: () => {
             document.getElementById('swal-profile-file').addEventListener('change', function(e) {
                 const file = e.target.files[0];
@@ -611,9 +618,12 @@ window.openProfileModal = async function() {
             });
         },
         preConfirm: () => {
+            const phoneVal = document.getElementById('swal-profile-phone').value.trim();
             return {
                 full_name: document.getElementById('swal-profile-name').value,
                 bio: document.getElementById('swal-profile-bio').value,
+                phone: phoneVal,
+                whatsapp: phoneVal,
                 avatar_url: base64Image
             }
         }

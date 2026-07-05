@@ -1,10 +1,12 @@
 -- Ejecuta este script en el SQL Editor de tu proyecto en Supabase.
 
--- 1. Actualizar la tabla de usuarios para soportar perfiles
+-- 1. Actualizar la tabla de usuarios para soportar perfiles y notificaciones
 ALTER TABLE public.users 
 ADD COLUMN IF NOT EXISTS full_name text,
 ADD COLUMN IF NOT EXISTS avatar_url text,
-ADD COLUMN IF NOT EXISTS bio text;
+ADD COLUMN IF NOT EXISTS bio text,
+ADD COLUMN IF NOT EXISTS phone text,
+ADD COLUMN IF NOT EXISTS whatsapp text;
 
 -- 2. Crear tabla de publicaciones (Muro)
 CREATE TABLE IF NOT EXISTS public.posts (
