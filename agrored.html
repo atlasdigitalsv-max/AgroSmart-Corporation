@@ -609,7 +609,7 @@
             
             try {
                 input.disabled = true;
-                const postBtn = document.querySelector('.btn-post');
+                const postBtn = document.getElementById('btn-publish');
                 postBtn.disabled = true;
                 postBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>';
 
@@ -623,9 +623,9 @@
                 window.showErrorModal('Error', 'No se pudo publicar: ' + e.message);
             } finally {
                 input.disabled = false;
-                const postBtn = document.querySelector('.btn-post');
+                const postBtn = document.getElementById('btn-publish');
                 postBtn.disabled = false;
-                postBtn.innerHTML = 'Publicar';
+                postBtn.innerHTML = 'Crear publicación';
             }
         }
 

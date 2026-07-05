@@ -277,16 +277,21 @@
 
     <div class="soporte-workspace animate__animated animate__fadeIn">
         <!-- Hero Header -->
-        <div class="hero-support-header d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-4">
+        <div
+            class="hero-support-header d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-4">
             <div>
-                <span class="badge bg-success px-3 py-2 rounded-pill text-uppercase fw-bold mb-3">Centro Unificado Corporativo</span>
-                <h1 class="display-5 fw-800 mb-2"><i class="bi bi-headset me-2 text-success"></i>Soporte Integral & Videollamadas</h1>
+                <span class="badge bg-success px-3 py-2 rounded-pill text-uppercase fw-bold mb-3">Centro Unificado
+                    Corporativo</span>
+                <h1 class="display-5 fw-800 mb-2"><i class="bi bi-headset me-2 text-success"></i>Soporte Integral &
+                    Videollamadas</h1>
                 <p class="opacity-75 lead mb-0" style="max-width: 750px;">
-                    Gestión de incidencias con tiempo límite de 72 horas, asistencia P2P por sala satelital y acceso al Manual de Usuario Oficial.
+                    Gestión de incidencias con tiempo límite de 72 horas, asistencia P2P por sala satelital y acceso al
+                    Manual de Usuario Oficial.
                 </p>
             </div>
             <div class="text-md-end">
-                <div id="user-role-badge" class="badge bg-dark border border-success p-3 rounded-4 shadow-sm text-start">
+                <div id="user-role-badge"
+                    class="badge bg-dark border border-success p-3 rounded-4 shadow-sm text-start">
                     <div class="small text-muted mb-1"><i class="bi bi-person-badge me-1"></i>Nivel de Acceso:</div>
                     <div id="role-display-text" class="fw-bold text-success fs-6">Verificando...</div>
                 </div>
@@ -324,30 +329,42 @@
             <div id="sub-pane-create" class="sub-pane active">
                 <div class="support-card max-w-4xl mx-auto" style="max-width: 850px;">
                     <!-- Aviso SLA 72 Horas -->
-                    <div class="alert alert-info border-info border-opacity-50 rounded-4 p-4 mb-4 d-flex align-items-center gap-3" style="background: rgba(47, 133, 90, 0.08);">
+                    <div class="alert alert-info border-info border-opacity-50 rounded-4 p-4 mb-4 d-flex align-items-center gap-3"
+                        style="background: rgba(47, 133, 90, 0.08);">
                         <i class="bi bi-clock-history fs-2 text-info"></i>
                         <div>
-                            <strong class="text-dark d-block fs-6 mb-1">SLA de Resolución Corporativa (Máximo 72 Horas)</strong>
-                            <span class="small text-muted">Todas las fichas generadas en esta plataforma tienen un tiempo límite estricto de respuesta de <strong>3 días (72 horas)</strong>. Si un caso excede este lapso sin ser resuelto o cerrado, pasará automáticamente al estado <span class="badge bg-danger">CRÍTICA</span>.</span>
+                            <strong class="text-dark d-block fs-6 mb-1">SLA de Resolución Corporativa (Máximo 72
+                                Horas)</strong>
+                            <span class="small text-muted">Todas las fichas generadas en esta plataforma tienen un
+                                tiempo límite estricto de respuesta de <strong>3 días (72 horas)</strong>. Si un caso
+                                excede este lapso sin ser resuelto o cerrado, pasará automáticamente al estado <span
+                                    class="badge bg-danger">CRÍTICA</span>.</span>
                         </div>
                     </div>
 
                     <!-- Aviso Regla Creadores/Dueños -->
-                    <div id="creator-notice-box" class="alert alert-warning border-warning border-opacity-50 rounded-4 p-4 mb-4" style="display: none; background: rgba(245, 158, 11, 0.1);">
+                    <div id="creator-notice-box"
+                        class="alert alert-warning border-warning border-opacity-50 rounded-4 p-4 mb-4"
+                        style="display: none; background: rgba(245, 158, 11, 0.1);">
                         <div class="d-flex align-items-center gap-3">
                             <i class="bi bi-shield-lock-fill fs-2 text-warning"></i>
                             <div>
                                 <h6 class="fw-bold text-dark mb-1">Modo Creador / Dueño Global (Atlas Digital)</h6>
                                 <p class="small text-muted mb-0">
-                                    Por normativas de jerarquía corporativa de AgroSmart, los <strong>Creadores y Dueños Globales</strong> no tienen la potestad de crear nuevas fichas de incidencias. Su función exclusiva es atender, gestionar y resolver las fichas dirigidas a ustedes o escaladas por los Administradores de Ministerio.
+                                    Por normativas de jerarquía corporativa de AgroSmart, los <strong>Creadores y Dueños
+                                        Globales</strong> no tienen la potestad de crear nuevas fichas de incidencias.
+                                    Su función exclusiva es atender, gestionar y resolver las fichas dirigidas a ustedes
+                                    o escaladas por los Administradores de Ministerio.
                                 </p>
                             </div>
                         </div>
                     </div>
 
                     <div id="ticket-form-wrapper">
-                        <h4 class="fw-bold mb-4 text-dark"><i class="bi bi-file-earmark-plus-fill me-2 text-primary"></i>Generar Nueva Ficha de Soporte</h4>
-                        
+                        <h4 class="fw-bold mb-4 text-dark"><i
+                                class="bi bi-file-earmark-plus-fill me-2 text-primary"></i>Generar Nueva Ficha de
+                            Soporte</h4>
+
                         <form id="create-report-form" onsubmit="handleCreateReport(event)">
                             <div class="row g-3 mb-3">
                                 <div class="col-md-6">
@@ -361,28 +378,38 @@
                             </div>
 
                             <div class="mb-3" style="display: none;">
-                                <label class="form-label small fw-bold text-muted">Dirigido a (Destinatario del Caso)</label>
+                                <label class="form-label small fw-bold text-muted">Dirigido a (Destinatario del
+                                    Caso)</label>
                                 <select id="rep-target" class="form-select rounded-3 fw-bold text-primary">
                                     <!-- Llenado dinámicamente según rol, pero ahora oculto porque es automático -->
                                 </select>
                             </div>
 
                             <div class="mb-3">
-                                <label class="form-label small fw-bold text-muted">Asunto del Soporte o Incidencia</label>
+                                <label class="form-label small fw-bold text-muted">Asunto del Soporte o
+                                    Incidencia</label>
                                 <select id="rep-subject" class="form-select rounded-3">
-                                    <option value="Asesoría Agronómica y Plan de Abonado">🌱 Asesoría Agronómica y Plan de Abonado</option>
-                                    <option value="Duda Técnica en Monitoreo Satelital (NDVI)">🛰️ Duda Técnica en Monitoreo Satelital (NDVI)</option>
-                                    <option value="Soporte en Sensores Hardware IoT y Clima">📡 Soporte en Sensores Hardware IoT y Clima</option>
-                                    <option value="Consulta sobre Calendario Lunar y Riego">🌙 Consulta sobre Calendario Lunar y Riego</option>
-                                    <option value="Reporte de Incidencia en Plataforma / App">⚠️ Reporte de Incidencia en Plataforma / App</option>
-                                    <option value="Solicitud de Capacitación / Videollamada P2P">🎥 Solicitud de Capacitación / Videollamada P2P</option>
+                                    <option value="Asesoría Agronómica y Plan de Abonado">🌱 Asesoría Agronómica y Plan
+                                        de Abonado</option>
+                                    <option value="Duda Técnica en Monitoreo Satelital (NDVI)">🛰️ Duda Técnica en
+                                        Monitoreo Satelital (NDVI)</option>
+                                    <option value="Soporte en Sensores Hardware IoT y Clima">📡 Soporte en Sensores
+                                        Hardware IoT y Clima</option>
+                                    <option value="Consulta sobre Calendario Lunar y Riego">🌙 Consulta sobre Calendario
+                                        Lunar y Riego</option>
+                                    <option value="Reporte de Incidencia en Plataforma / App">⚠️ Reporte de Incidencia
+                                        en Plataforma / App</option>
+                                    <option value="Solicitud de Capacitación / Videollamada P2P">🎥 Solicitud de
+                                        Capacitación / Videollamada P2P</option>
                                     <option value="Otro Motivo Técnico">📌 Otro Motivo Técnico</option>
                                 </select>
                             </div>
 
                             <div class="mb-4">
-                                <label class="form-label small fw-bold text-muted">Descripción Detallada del Requerimiento</label>
-                                <textarea id="rep-desc" class="form-control rounded-3" rows="4" placeholder="Explique con detalle su consulta o situación..." required></textarea>
+                                <label class="form-label small fw-bold text-muted">Descripción Detallada del
+                                    Requerimiento</label>
+                                <textarea id="rep-desc" class="form-control rounded-3" rows="4"
+                                    placeholder="Explique con detalle su consulta o situación..." required></textarea>
                             </div>
 
                             <div class="mb-4 form-check">
@@ -393,8 +420,10 @@
                             </div>
 
                             <div class="d-flex justify-content-end gap-2">
-                                <button type="button" onclick="switchSubTab('history')" class="btn btn-light px-4 py-2 rounded-pill fw-bold">Ver Mis Fichas</button>
-                                <button type="submit" class="btn btn-primary px-5 py-2 rounded-pill fw-bold shadow-sm d-flex align-items-center gap-2">
+                                <button type="button" onclick="switchSubTab('history')"
+                                    class="btn btn-light px-4 py-2 rounded-pill fw-bold">Ver Mis Fichas</button>
+                                <button type="submit"
+                                    class="btn btn-primary px-5 py-2 rounded-pill fw-bold shadow-sm d-flex align-items-center gap-2">
                                     <i class="bi bi-send-fill"></i> Crear Ficha
                                 </button>
                             </div>
@@ -408,11 +437,14 @@
                 <div class="support-card p-4">
                     <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
                         <div>
-                            <h4 class="fw-bold m-0"><i class="bi bi-camera-video-fill text-success me-2"></i>Sala de Conferencia Satelital P2P</h4>
-                            <p class="small text-muted m-0">Conexión cifrada punto a punto para asesoría agronómica en vivo</p>
+                            <h4 class="fw-bold m-0"><i class="bi bi-camera-video-fill text-success me-2"></i>Sala de
+                                Conferencia Satelital P2P</h4>
+                            <p class="small text-muted m-0">Conexión cifrada punto a punto para asesoría agronómica en
+                                vivo</p>
                         </div>
                         <div class="d-flex gap-2">
-                            <button onclick="switchSubTab('history')" class="btn btn-outline-secondary btn-sm rounded-pill px-3 fw-bold">
+                            <button onclick="switchSubTab('history')"
+                                class="btn btn-outline-secondary btn-sm rounded-pill px-3 fw-bold">
                                 <i class="bi bi-arrow-left me-1"></i> Volver al Listado
                             </button>
                             <button onclick="terminateRoom()" class="btn btn-danger btn-sm rounded-pill px-3 fw-bold">
@@ -421,10 +453,12 @@
                         </div>
                     </div>
                     <div id="meet-container">
-                        <div class="d-flex flex-column align-items-center justify-content-center h-100 p-5 text-center text-white">
+                        <div
+                            class="d-flex flex-column align-items-center justify-content-center h-100 p-5 text-center text-white">
                             <div class="spinner-border text-success mb-3" role="status"></div>
                             <h5 class="fw-bold">Esperando conexión...</h5>
-                            <p class="text-white-50 small">Selecciona una ficha en el listado y haz clic en "🎥 Sala" para iniciar o unirte a la videollamada.</p>
+                            <p class="text-white-50 small">Selecciona una ficha en el listado y haz clic en "🎥 Sala"
+                                para iniciar o unirte a la videollamada.</p>
                         </div>
                     </div>
                 </div>
@@ -435,8 +469,10 @@
                 <div class="support-card p-4">
                     <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
                         <div>
-                            <h4 class="fw-bold m-0"><i class="bi bi-folder-check text-primary me-2"></i>Registro y Seguimiento de Fichas</h4>
-                            <p class="small text-muted m-0">Monitoreo del SLA de 72 horas y herramientas de alerta por Gmail</p>
+                            <h4 class="fw-bold m-0"><i class="bi bi-folder-check text-primary me-2"></i>Registro y
+                                Seguimiento de Fichas</h4>
+                            <p class="small text-muted m-0">Monitoreo del SLA de 72 horas y herramientas de alerta por
+                                Gmail</p>
                         </div>
                         <button onclick="loadReports()" class="btn btn-light btn-sm rounded-pill px-3 fw-bold border">
                             <i class="bi bi-arrow-clockwise me-1"></i> Actualizar Listado
@@ -451,8 +487,10 @@
                     <div id="reports-empty" class="text-center py-5" style="display: none;">
                         <i class="bi bi-inbox fs-1 text-muted"></i>
                         <h5 class="fw-bold text-dark mt-3">No hay fichas registradas</h5>
-                        <p class="small text-muted">No se encontraron casos de soporte pendientes en tu jurisdicción o perfil.</p>
-                        <button onclick="switchSubTab('create')" class="btn btn-primary btn-sm rounded-pill px-4 mt-2">Crear Primera Ficha</button>
+                        <p class="small text-muted">No se encontraron casos de soporte pendientes en tu jurisdicción o
+                            perfil.</p>
+                        <button onclick="switchSubTab('create')"
+                            class="btn btn-primary btn-sm rounded-pill px-4 mt-2">Crear Primera Ficha</button>
                     </div>
 
                     <div class="reports-table-container">
@@ -477,19 +515,8 @@
 
         <!-- PESTAÑA PRINCIPAL 2: MANUAL DE USUARIO OFICIAL -->
         <div id="main-pane-manual" class="main-pane">
-            <div class="support-card p-4 text-center mb-4" style="background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); color: white;">
-                <div class="py-3">
-                    <span class="badge bg-warning text-dark px-3 py-1 rounded-pill fw-bold mb-2">Documentación Corporativa</span>
-                    <h2 class="fw-bold text-white mb-2"><i class="bi bi-book-half me-2" style="color: #ffd700;"></i>Manual de Usuario Oficial AgroSmart</h2>
-                    <p class="opacity-75 max-w-2xl mx-auto mb-4" style="max-width: 700px;">
-                        Aquí puedes consultar todas las instrucciones técnicas, guías de registro, uso de mapas satelitales, calendario lunar e IA Madre.
-                    </p>
-                    <a href="manual_usuario.html" target="_blank" class="btn btn-success btn-lg px-5 py-3 rounded-pill fw-bold shadow">
-                        <i class="bi bi-box-arrow-up-right me-2"></i> Abrir Manual a Pantalla Completa
-                    </a>
-                </div>
-            </div>
-            
+
+
             <!-- Embed interactivo del manual -->
             <div class="support-card p-0 overflow-hidden" style="height: 850px; border: 2px solid var(--border-color);">
                 <iframe src="manual_usuario.html" style="width: 100%; height: 100%; border: none;"></iframe>
@@ -510,10 +537,10 @@
 
         document.addEventListener('DOMContentLoaded', async () => {
             if (window.initLayout) await window.initLayout('soporte');
-            
+
             if (typeof EmailJSResponseStatus !== 'undefined' || typeof emailjs !== 'undefined') {
                 if (typeof CONFIG !== 'undefined' && CONFIG.EMAILJS_PUBLIC_KEY) {
-                    try { emailjs.init(CONFIG.EMAILJS_PUBLIC_KEY); } catch(e){}
+                    try { emailjs.init(CONFIG.EMAILJS_PUBLIC_KEY); } catch (e) { }
                 }
             }
 
@@ -522,7 +549,7 @@
             }
 
             setupUserUI();
-            
+
             // Revisar parámetro URL para abrir pestaña específica
             const urlParams = new URLSearchParams(window.location.search);
             const tabParam = urlParams.get('tab');
@@ -567,7 +594,7 @@
                 const btnRoom = document.getElementById('sub-tab-btn-room');
                 if (btnCreate) btnCreate.style.display = 'none';
                 if (btnRoom) btnRoom.style.display = 'none';
-                
+
                 // Cambiar automáticamente a la pestaña de historial/registro oficial
                 setTimeout(() => switchSubTab('history'), 50);
             }
@@ -641,7 +668,7 @@
                 const newReport = await window.DB.createVideocallReport(reportPayload);
 
                 let successHtml = `<p class="text-muted small">Tu reporte se ha registrado con un SLA máximo de <strong>72 horas</strong>. Se ha notificado al equipo correspondiente.</p>`;
-                
+
                 if (requiresVideo) {
                     successHtml += `
                         <div class="alert alert-success small text-start mt-2">
@@ -720,7 +747,7 @@
                         let adminButtons = '';
                         const isFarmer = !isAdminOrOwner && currentUser.role !== 'org_admin';
                         const isAdminView = isAdminOrOwner || currentUser.role === 'org_admin';
-                        
+
                         if (isAdminView && !r.assigned_to && r.status !== 'resolved' && r.status !== 'closed' && String(r.caller_id) !== String(currentUser.id)) {
                             adminButtons += `
                                 <button onclick="takeTicket('${r.id}')" class="btn-action-sm btn-action-resolve" title="Tomar este caso">
@@ -990,7 +1017,7 @@
                     if (h.action === 'created') actionText = `📝 <strong>Creado</strong> por usuario ID: ${h.by}`;
                     if (h.action === 'assigned') actionText = `👤 <strong>Asignado</strong> a Admin ID: ${h.by}`;
                     if (h.action === 'escalated') actionText = `⚡ <strong>Escalado</strong> a nivel ${h.to} por Admin ID: ${h.by}`;
-                    
+
                     historyHtml += `
                         <li class="list-group-item bg-light border-0 mb-1 rounded">
                             <div class="small text-muted mb-1"><i class="bi bi-clock"></i> ${dateStr}</div>
