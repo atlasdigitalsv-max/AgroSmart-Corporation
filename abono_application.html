@@ -74,7 +74,7 @@
             const allCrops = await window.DB.getAllCrops();
             currentCrop = allCrops.find(c => c.id === cropId);
 
-            if (!currentCrop || (currentCrop.user_id !== currentUser.id && !currentUser.is_superuser)) {
+            if (!currentCrop || (currentCrop.user_id != currentUser.id && currentUser.role !== 'global_owner' && !currentUser.is_superuser)) {
                 window.location.href = 'dashboard.html';
                 return;
             }

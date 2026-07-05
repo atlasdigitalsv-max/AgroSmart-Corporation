@@ -10,7 +10,11 @@ No te desvíes a temas que no tengan relación con agricultura, botánica o la p
 
 // Clave OpenRouter desde configuración global o codificada en Base64
 let openRouterKey = (typeof CONFIG !== 'undefined' && CONFIG.OPENROUTER_API_KEY) ? CONFIG.OPENROUTER_API_KEY : atob('c2stb3ItdjEtYTIwNjYxYmQ1OGZiZGYzMzYxZTJhMTUxMWEyNzNjNWUwM2I4N2M1N2NkMDY3MTQ4MjE2ZTQ3MjQ1ZTc1YTYxNg==');
-let currentModel = localStorage.getItem('agrosmart_ai_model') || 'google/gemini-2.5-flash';
+let currentModel = localStorage.getItem('agrosmart_ai_model') || 'google/gemini-2.0-flash-001';
+if (currentModel.includes('2.5-flash')) {
+    currentModel = 'google/gemini-2.0-flash-001';
+    localStorage.setItem('agrosmart_ai_model', currentModel);
+}
 let chatHistory = [];
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -87,6 +91,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // Si el valor de localStorage ya no existe (ej. modelos antiguos), el select tomará el default
     // Actualizamos currentModel al valor real y válido del select:
     currentModel = document.getElementById('model-select').value;
+    
+    // Update the UI immediately with the loaded model name
+    updateAllAIBubbles();
 
     // Load voices for Jarvis
     function populateVoiceList() {
@@ -118,6 +125,14 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
+function getSelectedModelName() {
+    const select = document.getElementById('model-select');
+    if (select && select.options.length > 0) {
+        return select.options[select.selectedIndex].text;
+    }
+    return 'G0DM0D3 Engine';
+}
+
 function addMessageToUI(sender, text) {
     const messagesContainer = document.getElementById('chat-messages');
     const bubble = document.createElement('div');
@@ -132,13 +147,14 @@ function addMessageToUI(sender, text) {
             <div class="text-start" style="white-space: pre-wrap;">${escapeHTML(text)}</div>
         `;
     } else {
+        const modelName = getSelectedModelName();
         bubble.className = 'chat-bubble chat-bubble-ai';
         // Parse markdown for AI responses
         const parsedHTML = marked.parse(text);
         bubble.innerHTML = `
             <div class="d-flex gap-2 mb-2 align-items-center">
                 <i class="bi bi-robot text-success"></i>
-                <strong class="small">Agro IA</strong>
+                <strong class="small">Agro IA (${modelName})</strong>
             </div>
             <div class="markdown-body text-start">${parsedHTML}</div>
         `;
@@ -175,11 +191,14 @@ function removeTypingIndicator(id) {
 }
 
 async function fetchOpenRouterAPI(messages) {
+    const modelName = getSelectedModelName();
+    const dynamicSystemPrompt = SYSTEM_PROMPT + `\n\nIMPORTANTE: Te llamas y te presentas al usuario como la red neuronal: "${modelName}". Debes responder asumiendo esa identidad.`;
+
     const payload = {
         model: currentModel,
         max_tokens: 1500,
         messages: [
-            { role: "system", content: SYSTEM_PROMPT },
+            { role: "system", content: dynamicSystemPrompt },
             ...messages
         ]
     };
@@ -203,6 +222,19 @@ function openSettingsModal() {
     modal.show();
 }
 
+function updateAllAIBubbles() {
+    const modelName = getSelectedModelName();
+    document.querySelectorAll('.chat-bubble-ai strong').forEach(el => {
+        el.textContent = `Agro IA (${modelName})`;
+    });
+    
+    // Si es el primer mensaje por defecto, actualizar el texto para que se presente
+    const welcomeBubble = document.querySelector('.chat-messages .chat-bubble-ai .markdown-body');
+    if (welcomeBubble && chatHistory.length === 0 && welcomeBubble.textContent.includes('¡Hola! Soy')) {
+        welcomeBubble.innerHTML = `¡Hola! Soy tu asistente agrícola inteligente impulsado por <strong>${modelName}</strong>. Estoy aquí para ayudarte con recomendaciones sobre cultivos, control de plagas, calendarios lunares y fertilización. ¿En qué puedo apoyarte hoy en tu parcela?`;
+    }
+}
+
 window.saveSettings = function() {
     const newModel = document.getElementById('model-select').value;
     const jarvisVoice = document.getElementById('jarvis-voice-select').value;
@@ -220,12 +252,14 @@ window.saveSettings = function() {
         }
     }
 
+    updateAllAIBubbles();
+
     bootstrap.Modal.getInstance(document.getElementById('settingsModal')).hide();
     
     Swal.fire({
         icon: 'success',
         title: 'Guardado',
-        text: 'Configuración de IA actualizada correctamente.',
+        text: 'Configuración de IA actualizada correctamente. El modelo ahora es ' + getSelectedModelName() + '.',
         timer: 2000,
         showConfirmButton: false
     });

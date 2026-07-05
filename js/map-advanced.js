@@ -82,7 +82,7 @@ window.AgroMapAdvanced = {
                     this.loadNASA('MODIS_Terra_Land_Surface_Temp_Day', id);
                     break;
                 case 'uv':
-                    this.loadNASA('Aura_OMI_UV_Index', id);
+                    this.loadNASA('SNPP_OMPS_UV_Aerosol_Index', id);
                     break;
                 case 'snow':
                     this.loadNASA('MODIS_Terra_NDSI_Snow_Cover', id);
@@ -197,12 +197,17 @@ window.AgroMapAdvanced = {
     },
 
     loadNASA: function(nasaLayerName, id) {
+        const d = new Date();
+        d.setDate(d.getDate() - 2); // Restar 2 días para asegurar que el satélite ya procesó la imagen
+        const timeStr = d.toISOString().split('T')[0];
+
         const provider = new Cesium.WebMapServiceImageryProvider({
             url: 'https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi',
             layers: nasaLayerName,
             parameters: {
                 transparent: 'true',
-                format: 'image/png'
+                format: 'image/png',
+                time: timeStr
             },
             tilingScheme: new Cesium.GeographicTilingScheme(), // CRUCIAL: Previene errores 400 de NASA GIBS
             credit: 'NASA GIBS',

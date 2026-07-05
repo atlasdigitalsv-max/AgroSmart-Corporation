@@ -83,8 +83,8 @@
         .form-control-clean:focus {
             outline: none;
             background: #ffffff;
-            border-color: #8b5cf6;
-            box-shadow: 0 0 0 4px rgba(139, 92, 246, 0.15);
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 4px rgba(47, 133, 90, 0.15);
             transform: translateY(-1px);
         }
         .search-pill-wrapper {
@@ -98,8 +98,8 @@
         }
         .search-pill-wrapper:focus-within {
             background: #ffffff;
-            border-color: #8b5cf6;
-            box-shadow: 0 0 0 4px rgba(139, 92, 246, 0.15);
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 4px rgba(47, 133, 90, 0.15);
         }
         .search-pill-wrapper input {
             border: none;
@@ -120,13 +120,13 @@
             font-size: 1rem;
             cursor: pointer;
             transition: all 0.2s ease;
-            background: #8b5cf6;
+            background: var(--primary-color);
             color: white;
             flex-shrink: 0;
         }
         .btn-pill-icon:hover {
             transform: scale(1.06);
-            background: #7c3aed;
+            background: var(--primary-hover);
         }
         .btn-pill-geo {
             background: #3b82f6;
@@ -161,19 +161,19 @@
             border-bottom: none;
         }
         .suggestion-item:hover {
-            background: rgba(139, 92, 246, 0.08);
-            color: #7c3aed;
+            background: rgba(47, 133, 90, 0.08);
+            color: var(--primary-hover);
         }
         /* Botón de Análisis Astral Cósmico */
         .btn-astral-glow {
-            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #d946ef 100%);
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-color) 50%, #10b981 100%);
             color: white;
             border: none;
             border-radius: 50px;
             padding: 16px 30px;
             font-weight: 700;
             font-size: 1.05rem;
-            box-shadow: 0 12px 30px rgba(139, 92, 246, 0.35);
+            box-shadow: 0 12px 30px rgba(47, 133, 90, 0.35);
             transition: all 0.3s ease;
             width: 100%;
             display: flex;
@@ -184,7 +184,7 @@
         }
         .btn-astral-glow:hover:not(:disabled) {
             transform: translateY(-2px);
-            box-shadow: 0 18px 38px rgba(139, 92, 246, 0.5);
+            box-shadow: 0 18px 38px rgba(47, 133, 90, 0.5);
             color: white;
         }
         .btn-astral-glow:disabled {
@@ -195,10 +195,10 @@
         }
         /* Panel de recomendación agrícola lunar integrado */
         .lunar-advice-panel {
-            background: linear-gradient(135deg, rgba(139, 92, 246, 0.1) 0%, rgba(217, 70, 239, 0.04) 100%);
+            background: linear-gradient(135deg, rgba(47, 133, 90, 0.1) 0%, rgba(16, 185, 129, 0.04) 100%);
             border-radius: 20px;
             padding: 22px;
-            border-left: 4px solid #8b5cf6;
+            border-left: 4px solid var(--primary-color);
             margin-top: 20px;
             animation: fadeIn 0.4s ease;
         }
@@ -209,7 +209,7 @@
             min-height: 600px;
             border-radius: 28px;
             overflow: hidden;
-            box-shadow: 0 25px 50px -12px rgba(139, 92, 246, 0.18);
+            box-shadow: 0 25px 50px -12px rgba(47, 133, 90, 0.18);
             border: 1px solid rgba(255, 255, 255, 0.7);
             background: #0f172a;
         }
@@ -283,7 +283,7 @@
         }
         .moon-icon-glow {
             font-size: 3.5rem;
-            filter: drop-shadow(0 0 25px rgba(217, 70, 239, 0.6));
+            filter: drop-shadow(0 0 25px rgba(16, 185, 129, 0.6));
             line-height: 1;
             animation: float 6s ease-in-out infinite;
         }
@@ -320,7 +320,7 @@
             color: rgba(255, 255, 255, 0.6);
         }
         .illumination-pill {
-            background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%);
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-color) 100%);
             color: white;
             padding: 4px 12px;
             border-radius: 50px;
@@ -366,7 +366,7 @@
     <div class="workspace-container animate-slide-up">
         <div class="page-header-clean">
             <div>
-                <h1><i class="bi bi-moon-stars-fill" style="color: #8b5cf6;"></i> <span>Centro de Inteligencia Lunar</span></h1>
+                <h1><i class="bi bi-moon-stars-fill" style="color: var(--primary-color);"></i> <span>Centro de Inteligencia Lunar</span></h1>
                 <div class="subtitle">Telemetría astrológica de precisión y calendarios lunares para optimización de cultivos</div>
             </div>
             <div class="d-none d-md-flex align-items-center gap-2 text-muted small">
@@ -769,7 +769,7 @@
                         adviceSection.innerHTML = `
                             <div class="lunar-advice-panel">
                                 <div class="d-flex align-items-center gap-2 mb-2">
-                                    <i class="bi bi-stars fs-4" style="color: #8b5cf6;"></i>
+                                    <i class="bi bi-stars fs-4" style="color: var(--primary-color);"></i>
                                     <h6 class="mb-0 fw-bold text-dark">Recomendación Agrícola: ${phaseData[0]}</h6>
                                 </div>
                                 <p class="small text-secondary mb-0" style="line-height: 1.5;">${phaseData[2]}</p>

@@ -534,7 +534,29 @@ class Database {
 
             try {
                 const { data, error } = await query;
-                if (!error && data) return data;
+                let remoteCrops = (!error && data) ? data : [];
+                
+                // Mezclar con cultivos locales no sincronizados
+                const db = this.getLocalDB();
+                let localCrops = [];
+                if (!currentUser || currentUser.role === 'global_owner') {
+                    localCrops = db.crops;
+                } else if (currentUser.role === 'ministry_admin') {
+                    const countryUserIds = db.users.filter(u => u.country_id === currentUser.country_id).map(u => u.id);
+                    localCrops = db.crops.filter(c => countryUserIds.includes(c.user_id));
+                } else if (currentUser.role === 'org_admin') {
+                    localCrops = db.crops.filter(c => c.org_id === currentUser.org_id);
+                } else {
+                    localCrops = db.crops.filter(c => c.user_id === currentUser.id || (currentUser.org_id && c.org_id === currentUser.org_id));
+                }
+                
+                const merged = [...remoteCrops];
+                localCrops.forEach(lc => {
+                    if (!merged.find(rc => rc.id == lc.id)) {
+                        merged.push(lc);
+                    }
+                });
+                return merged;
             } catch (err) {
                 // Silenced
             }

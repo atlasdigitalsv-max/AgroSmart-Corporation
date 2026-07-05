@@ -18,7 +18,11 @@ class JarvisCore {
         
         // Defaults and saved configs
         this.language = localStorage.getItem('jarvis_language') || 'es-ES';
-        this.model = localStorage.getItem('jarvis_model') || 'google/gemini-2.5-flash';
+        this.model = localStorage.getItem('jarvis_model') || 'google/gemini-2.0-flash-001';
+        if (this.model.includes('2.5-flash')) {
+            this.model = 'google/gemini-2.0-flash-001';
+            localStorage.setItem('jarvis_model', this.model);
+        }
         this.voiceIndex = parseInt(localStorage.getItem('jarvis_voice_index') || '0', 10);
         
         // Clave OpenRouter oficial o codificada en Base64 para escaneo frontend
@@ -325,6 +329,7 @@ class JarvisCore {
 
             await this.currentAudio.play();
         } catch (err) {
+            if (err.name === 'AbortError') return; // Ignorar interrupción si el usuario lo calló
             this.fallbackWebSpeech(text, resumeListeningAfter, speakId);
         }
     }
@@ -489,9 +494,9 @@ CONVERSACIÓN CONTINUA Y DESPEDIDA:
             // 1. Primer intento ultra-rápido: OpenRouter con modelo de baja latencia
             if (this.openRouterKey) {
                 const modelsToTry = [
-                    "google/gemini-2.0-flash-lite-001:free",
-                    "meta-llama/llama-3.1-8b-instruct:free",
-                    "openchat/openchat-7b:free"
+                    this.model,
+                    "google/gemini-2.0-flash-001",
+                    "openai/gpt-4o-mini"
                 ];
 
                 for (const tryModel of modelsToTry) {
