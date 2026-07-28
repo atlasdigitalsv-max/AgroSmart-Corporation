@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Historial de Abonos</title>
+    <title>Gestión de Actividades del Cultivo</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="css/modern_agro.css">
 </head>
@@ -48,6 +48,32 @@
             <span>Nota: Los abonos marcados como "Atrasados" pueden afectar el rendimiento final.</span>
             <span id="last-updated"></span>
         </div>
+
+        <!-- Unified Crop Activities Section (WhatsApp-Ready) -->
+        <div class="agro-card p-4 mb-4 mt-4">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="fw-bold m-0" style="color: #25D366;"><i class="bi bi-whatsapp me-2"></i>Actividades Programadas</h5>
+                <span class="badge bg-light text-muted" id="activities-count">0 actividades</span>
+            </div>
+            <p class="text-muted small">Actividades automatizadas que generarán recordatorios por WhatsApp. Incluye abonado, riego, poda, fumigación y cosecha.</p>
+            
+            <div class="admin-table-container overflow-hidden rounded-4 border mt-3">
+                <table class="agro-table w-100">
+                    <thead>
+                        <tr>
+                            <th>Fecha</th>
+                            <th>Tipo</th>
+                            <th>Descripción</th>
+                            <th>Estado</th>
+                            <th class="text-end">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="activities-tbody">
+                        <!-- Injected via JS -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
@@ -56,6 +82,7 @@
     <script src="js/config.js"></script>
     <script src="js/crop_catalog.js"></script>
     <script src="js/database.js"></script>
+    <script src="js/notification-service.js"></script>
     <script src="js/layout.js"></script>
 
     <script>
@@ -79,8 +106,9 @@
                 return;
             }
 
-            document.getElementById('crop-title').innerText = `Nutrición: ${currentCrop.name}`;
+            document.getElementById('crop-title').innerText = `Actividades: ${currentCrop.name}`;
             await renderAbonos();
+            await renderCropActivities();
         }
 
         async function getAbonos() {
@@ -237,6 +265,138 @@
         };
 
         document.addEventListener('DOMContentLoaded', initAbonos);
+
+        // --- Unified Crop Activities Rendering ---
+        const ACTIVITY_ICONS = {
+            'abonado': '🧪',
+            'fertilizacion': '🌿',
+            'riego': '💧',
+            'poda': '✂️',
+            'fumigacion': '🛡️',
+            'cosecha': '🌾'
+        };
+
+        const ACTIVITY_LABELS = {
+            'abonado': 'Abonado',
+            'fertilizacion': 'Fertilización',
+            'riego': 'Riego',
+            'poda': 'Poda',
+            'fumigacion': 'Fumigación',
+            'cosecha': 'Cosecha'
+        };
+
+        async function renderCropActivities() {
+            const tbody = document.getElementById('activities-tbody');
+            const countBadge = document.getElementById('activities-count');
+            if (!tbody) return;
+
+            try {
+                const activities = await window.DB.getCropActivitiesByCrop(cropId);
+                countBadge.textContent = `${activities.length} actividad${activities.length !== 1 ? 'es' : ''}`;
+
+                if (activities.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-muted">No hay actividades programadas para este cultivo.</td></tr>';
+                    return;
+                }
+
+                const now = new Date();
+                const todayStr = now.toISOString().split('T')[0];
+                let html = '';
+
+                activities.forEach(act => {
+                    const scheduledDate = new Date(act.scheduled_date + 'T00:00:00');
+                    const isLate = scheduledDate < now && act.status === 'pendiente' && act.scheduled_date !== todayStr;
+                    const isToday = act.scheduled_date === todayStr;
+                    const icon = ACTIVITY_ICONS[act.activity_type] || '📋';
+                    const label = ACTIVITY_LABELS[act.activity_type] || act.activity_type;
+
+                    let statusBadge = '';
+                    if (act.status === 'realizado') {
+                        statusBadge = '<span class="badge bg-success-soft text-success"><i class="bi bi-check-circle me-1"></i>Realizado</span>';
+                    } else if (act.status === 'omitido') {
+                        statusBadge = '<span class="badge bg-danger-soft text-danger"><i class="bi bi-x-circle me-1"></i>Omitido</span>';
+                    } else if (act.status === 'reprogramado') {
+                        const newDate = act.rescheduled_to ? new Date(act.rescheduled_to + 'T00:00:00').toLocaleDateString() : '—';
+                        statusBadge = `<span class="badge bg-info-soft text-info"><i class="bi bi-calendar-event me-1"></i>→ ${newDate}</span>`;
+                    } else if (isLate) {
+                        statusBadge = '<span class="badge bg-warning-soft text-dark"><i class="bi bi-exclamation-triangle me-1"></i>Atrasado</span>';
+                    } else if (isToday) {
+                        statusBadge = '<span class="badge bg-primary-soft text-primary"><i class="bi bi-clock me-1"></i>Hoy</span>';
+                    } else {
+                        statusBadge = '<span class="badge bg-light text-muted">Pendiente</span>';
+                    }
+
+                    let waIcon = '';
+                    if (act.whatsapp_reminder_sent) {
+                        waIcon = '<i class="bi bi-whatsapp text-success ms-1" title="Recordatorio enviado"></i>';
+                    }
+
+                    let actions = '';
+                    if (act.status === 'pendiente') {
+                        actions = `
+                            <div class="d-flex justify-content-end gap-2">
+                                <button onclick="changeActivityStatus(${act.id}, 'realizado')" class="btn btn-agro-primary btn-xs">✅ Hecho</button>
+                                <button onclick="changeActivityStatus(${act.id}, 'omitido')" class="btn btn-outline-danger btn-xs">Omitir</button>
+                            </div>
+                        `;
+                    } else if (act.status !== 'reprogramado') {
+                        actions = `
+                            <div class="d-flex justify-content-end">
+                                <button onclick="changeActivityStatus(${act.id}, 'pendiente')" class="btn btn-link text-muted btn-xs text-decoration-none">Deshacer</button>
+                            </div>
+                        `;
+                    }
+
+                    html += `
+                        <tr>
+                            <td class="small fw-medium">${scheduledDate.toLocaleDateString()}</td>
+                            <td><span class="me-1">${icon}</span>${label}</td>
+                            <td class="small">${act.description || '—'} ${waIcon}</td>
+                            <td>${statusBadge}</td>
+                            <td class="text-end">${actions}</td>
+                        </tr>
+                    `;
+                });
+
+                tbody.innerHTML = html;
+            } catch(e) {
+                console.warn('Error rendering crop activities:', e);
+                tbody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-muted">Error cargando actividades.</td></tr>';
+            }
+        }
+
+        window.changeActivityStatus = async function(activityId, status) {
+            if (status === 'omitido') {
+                const result = await Swal.fire({
+                    title: '¿Omitir actividad?',
+                    text: 'Omitir esta actividad puede afectar la salud del cultivo. ¿Deseas continuar?',
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonColor: '#d33',
+                    cancelButtonColor: '#3085d6',
+                    confirmButtonText: 'Sí, omitir',
+                    cancelButtonText: 'Cancelar'
+                });
+                if (!result.isConfirmed) return;
+            }
+
+            try {
+                await window.DB.updateCropActivityStatus(activityId, status);
+                await renderCropActivities();
+
+                if (status === 'realizado') {
+                    Swal.fire({
+                        title: '¡Excelente!',
+                        text: 'La actividad ha sido registrada como realizada.',
+                        icon: 'success',
+                        timer: 1500,
+                        showConfirmButton: false
+                    });
+                }
+            } catch(e) {
+                Swal.fire('Error', 'No se pudo actualizar la actividad.', 'error');
+            }
+        };
     </script>
 </body>
 </html>

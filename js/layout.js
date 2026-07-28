@@ -574,6 +574,22 @@ window.openProfileModal = async function() {
 
     let base64Image = user.avatar_url || '';
 
+    // Build phone country code options
+    const config = window.CONFIG || {};
+    const codes = config.PHONE_COUNTRY_CODES || [
+        { code: '+503', country: 'El Salvador', flag: '🇸🇻' }
+    ];
+    
+    const currentPhoneCode = user.phone_country_code || '+503';
+    const currentPhone = (user.phone || user.whatsapp || '').replace(currentPhoneCode, '');
+    const isWhatsAppOptIn = user.whatsapp_opt_in !== false; // default true if undefined
+    
+    let phoneCodeOptions = '';
+    codes.forEach(item => {
+        const selected = item.code === currentPhoneCode ? 'selected' : '';
+        phoneCodeOptions += `<option value="${item.code}" ${selected}>${item.flag} ${item.code} ${item.country}</option>`;
+    });
+
     const { value: formValues } = await Swal.fire({
         title: '<div style="font-size:1.4rem; font-weight:700; color:var(--text-main); margin-bottom: 5px;">Editar Perfil</div><div style="font-size:0.9rem; font-weight:400; color:var(--text-muted);">Configuración de cuenta y notificaciones</div>',
         html: `
@@ -583,8 +599,28 @@ window.openProfileModal = async function() {
                     <input id="swal-profile-name" class="form-control" style="border-radius: 8px; padding: 10px 15px; border: 1px solid rgba(0,0,0,0.1);" value="${user.full_name || ''}" placeholder="Tu nombre...">
                 </div>
                 <div class="mb-3">
-                    <label class="form-label small fw-bold" style="color:var(--text-muted);">Teléfono / WhatsApp</label>
-                    <input id="swal-profile-phone" class="form-control" style="border-radius: 8px; padding: 10px 15px; border: 1px solid rgba(0,0,0,0.1);" value="${user.phone || user.whatsapp || ''}" placeholder="+503 7000 0000">
+                    <label class="form-label small fw-bold" style="color:var(--text-muted);"><i class="bi bi-whatsapp text-success me-1"></i>Teléfono / WhatsApp</label>
+                    <div style="display: flex; gap: 8px;">
+                        <select id="swal-profile-phone-code" class="form-select" style="border-radius: 8px; padding: 10px; border: 1px solid rgba(0,0,0,0.1); width: 180px; flex-shrink: 0;">
+                            ${phoneCodeOptions}
+                        </select>
+                        <input id="swal-profile-phone" class="form-control" style="border-radius: 8px; padding: 10px 15px; border: 1px solid rgba(0,0,0,0.1);" value="${currentPhone}" placeholder="7123 4567">
+                    </div>
+                    <small style="color: var(--text-muted); font-size: 0.75rem; margin-top: 4px; display: block;">Solo dígitos, sin guiones ni espacios</small>
+                </div>
+                <div class="mb-3" style="background: rgba(37, 211, 102, 0.08); border: 1px solid rgba(37, 211, 102, 0.2); border-radius: 12px; padding: 14px 16px;">
+                    <label class="d-flex align-items-center justify-content-between" style="cursor: pointer; margin: 0;">
+                        <div class="d-flex align-items-center gap-2">
+                            <i class="bi bi-whatsapp" style="font-size: 1.3rem; color: #25D366;"></i>
+                            <div>
+                                <div class="fw-bold" style="font-size: 0.9rem; color: var(--text-main);">Notificaciones WhatsApp</div>
+                                <div style="font-size: 0.75rem; color: var(--text-muted);">Recordatorios de cultivos y alertas</div>
+                            </div>
+                        </div>
+                        <div class="form-check form-switch" style="margin: 0; padding-left: 0;">
+                            <input class="form-check-input" type="checkbox" id="swal-profile-whatsapp-optin" ${isWhatsAppOptIn ? 'checked' : ''} style="width: 48px; height: 26px; cursor: pointer;">
+                        </div>
+                    </label>
                 </div>
                 <div class="mb-3">
                     <label class="form-label small fw-bold" style="color:var(--text-muted);">Biografía / Ocupación</label>
@@ -618,12 +654,24 @@ window.openProfileModal = async function() {
             });
         },
         preConfirm: () => {
-            const phoneVal = document.getElementById('swal-profile-phone').value.trim();
+            const phoneCode = document.getElementById('swal-profile-phone-code').value;
+            const phoneNum = document.getElementById('swal-profile-phone').value.replace(/[\s\-\(\)]/g, '');
+            const fullPhone = phoneNum ? `${phoneCode}${phoneNum}` : '';
+            const whatsappOptIn = document.getElementById('swal-profile-whatsapp-optin').checked;
+
+            // Validate phone if provided
+            if (phoneNum && !/^[0-9]{7,15}$/.test(phoneNum)) {
+                Swal.showValidationMessage('Número de teléfono inválido. Ingresa solo dígitos (mínimo 7).');
+                return false;
+            }
+
             return {
                 full_name: document.getElementById('swal-profile-name').value,
                 bio: document.getElementById('swal-profile-bio').value,
-                phone: phoneVal,
-                whatsapp: phoneVal,
+                phone: fullPhone,
+                phone_country_code: phoneCode,
+                whatsapp: fullPhone,
+                whatsapp_opt_in: whatsappOptIn,
                 avatar_url: base64Image
             }
         }
@@ -632,7 +680,7 @@ window.openProfileModal = async function() {
     if (formValues) {
         try {
             await window.DB.updateUserProfile(user.id, formValues);
-            window.showSuccessModal('Perfil Actualizado', 'Tu perfil de AgroRed ha sido actualizado exitosamente.');
+            window.showSuccessModal('Perfil Actualizado', 'Tu perfil de AgroSmart ha sido actualizado exitosamente.');
             setTimeout(() => window.location.reload(), 1500);
         } catch(e) {
             window.showErrorModal('Error', 'Hubo un problema actualizando el perfil.');

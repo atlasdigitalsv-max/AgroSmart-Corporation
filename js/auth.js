@@ -1,16 +1,20 @@
 // auth.js
-// Handles the authentication flow transitions and logic with Ultra-Premium polish
-// Real OTP Integration with EmailJS
+// Handles the authentication flow transitions and logic
+// WhatsApp-First Registration (Direct, No OTP Required)
+// Recovery flow preserved with OTP via EmailJS as fallback
 
 let temporalEmail = '';
 let temporalCountryId = null;
 let temporalOTP = '';
-let otpExpiry = 0; // Timestamp for expiration
-let isRecoveryFlow = false; // Flag to differentiate between Register and Recover
+let otpExpiry = 0;
+let isRecoveryFlow = false;
 
-// Initialize EmailJS
+// Initialize EmailJS (kept as fallback for password recovery)
 if (typeof emailjs !== 'undefined') {
-    emailjs.init(CONFIG.EMAILJS_PUBLIC_KEY);
+    const config = window.CONFIG || {};
+    if (config.EMAILJS_PUBLIC_KEY) {
+        emailjs.init(config.EMAILJS_PUBLIC_KEY);
+    }
 }
 
 function switchView(viewId) {
@@ -57,6 +61,52 @@ function showError(viewId, message) {
         setTimeout(() => errEl.classList.remove('animate__shakeX'), 1000);
     }
 }
+
+// --- Phone Number Validation & Formatting Utilities ---
+
+/**
+ * Validates a phone number (digits only, 7-15 characters)
+ */
+function validatePhoneInput(phone) {
+    const cleaned = phone.replace(/[\s\-\(\)]/g, '');
+    return /^[0-9]{7,15}$/.test(cleaned);
+}
+
+/**
+ * Formats phone number to international format
+ * @param {string} countryCode - e.g. '+503'
+ * @param {string} phone - e.g. '71234567'
+ * @returns {string} e.g. '+50371234567'
+ */
+function formatInternationalPhone(countryCode, phone) {
+    const cleanCode = (countryCode || '+503').replace(/\s/g, '');
+    const cleanNumber = (phone || '').replace(/[\s\-\(\)]/g, '');
+    return `${cleanCode}${cleanNumber}`;
+}
+
+/**
+ * Populate phone country code selector from CONFIG
+ */
+function populatePhoneCountryCodes(selectId) {
+    const select = document.getElementById(selectId);
+    if (!select) return;
+    
+    const config = window.CONFIG || {};
+    const codes = config.PHONE_COUNTRY_CODES || [
+        { code: '+503', country: 'El Salvador', flag: '🇸🇻' }
+    ];
+    
+    select.innerHTML = '';
+    codes.forEach(item => {
+        const opt = document.createElement('option');
+        opt.value = item.code;
+        opt.textContent = `${item.flag} ${item.code}`;
+        opt.title = item.country;
+        select.appendChild(opt);
+    });
+}
+
+// --- OTP (kept for password recovery only) ---
 
 async function sendRealOTP(email, btn, originalText, context) {
     temporalEmail = email;
@@ -106,7 +156,7 @@ async function sendRealOTP(email, btn, originalText, context) {
     } catch (error) {
         console.warn('FAILED...', error);
         const viewId = isRecoveryFlow ? 'recover-view' : 'register-view';
-        showError(viewId, 'Error al enviar email. Revisa config.js o tu conexión.');
+        showError(viewId, 'Error al enviar email. Revisa tu conexión e intenta de nuevo.');
     } finally {
         btn.innerText = originalText;
         btn.disabled = false;
@@ -139,7 +189,7 @@ async function checkExistingSession() {
 document.addEventListener('DOMContentLoaded', async () => {
     checkExistingSession();
 
-    // Popula países en el registro
+    // Populate countries in registration
     const countrySelect = document.getElementById('register-country');
     if (countrySelect) {
         try {
@@ -154,6 +204,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             console.warn("Error cargando países:", err);
         }
     }
+
+    // Populate phone country codes in registration
+    populatePhoneCountryCodes('register-phone-code');
 
     // === LOGIN FLOW ===
     const loginForm = document.getElementById('login-form');
@@ -178,32 +231,86 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
-    // === REGISTER FLOW ===
+    // === REGISTER FLOW (Direct - No OTP) ===
     const registerForm = document.getElementById('register-form');
     if (registerForm) {
         registerForm.addEventListener('submit', async (e) => {
             e.preventDefault();
-            const email = document.getElementById('register-email').value;
+            const email = document.getElementById('register-email').value.trim();
             const countryId = document.getElementById('register-country').value;
+            const phoneCode = document.getElementById('register-phone-code').value;
+            const phoneNumber = document.getElementById('register-phone').value.trim();
+            const password = document.getElementById('register-password').value;
+            const confirmPassword = document.getElementById('register-password-confirm').value;
+            const whatsappOptIn = document.getElementById('register-whatsapp-optin').checked;
 
+            // Validations
             if (!countryId) {
                 showError('register-view', 'Por favor selecciona tu país.');
                 return;
             }
 
+            if (!validatePhoneInput(phoneNumber)) {
+                showError('register-view', 'Número de teléfono inválido. Ingresa solo dígitos (mínimo 7).');
+                return;
+            }
+
+            if (password !== confirmPassword) {
+                showError('register-view', 'Las contraseñas no coinciden.');
+                return;
+            }
+
+            if (password.length < 6) {
+                showError('register-view', 'Por seguridad, usa al menos 6 caracteres en tu contraseña.');
+                return;
+            }
+
+            // Check if email is already registered
             if (await window.DB.getUserByEmail(email)) {
                 showError('register-view', 'Este correo ya pertenece a una cuenta.');
                 return;
             }
 
-            isRecoveryFlow = false;
-            temporalCountryId = countryId;
-            const btn = e.target.querySelector('button');
-            await sendRealOTP(email, btn, btn.innerText, 'registro');
+            const btn = e.target.querySelector('button[type="submit"]');
+            const originalHTML = btn.innerHTML;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Creando cuenta...';
+            btn.disabled = true;
+
+            try {
+                const fullPhone = formatInternationalPhone(phoneCode, phoneNumber);
+
+                await window.DB.createUser({
+                    email: email,
+                    password: password,
+                    country_id: countryId,
+                    role: 'farmer',
+                    phone: fullPhone,
+                    phone_country_code: phoneCode,
+                    whatsapp: fullPhone,
+                    whatsapp_opt_in: whatsappOptIn
+                });
+
+                if (window.showSuccessModal) {
+                    window.showSuccessModal(
+                        '¡Cuenta Creada Exitosamente!',
+                        whatsappOptIn
+                            ? 'Tu cuenta ha sido creada. Recibirás recordatorios de tus cultivos por WhatsApp.'
+                            : 'Tu cuenta ha sido creada. Ahora puedes iniciar sesión.'
+                    );
+                }
+
+                switchView('login-view');
+                document.getElementById('login-email').value = email;
+            } catch (err) {
+                showError('register-view', err.message || 'Error al crear la cuenta. Intenta de nuevo.');
+            } finally {
+                btn.innerHTML = originalHTML;
+                btn.disabled = false;
+            }
         });
     }
 
-    // === RECOVERY FLOW ===
+    // === RECOVERY FLOW (preserved with OTP for password reset) ===
     const recoverForm = document.getElementById('recover-form');
     if (recoverForm) {
         recoverForm.addEventListener('submit', async (e) => {
@@ -221,7 +328,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
-    // === OTP VALIDATION ===
+    // === OTP VALIDATION (for recovery only) ===
     const otpForm = document.getElementById('otp-form');
     if (otpForm) {
         otpForm.addEventListener('submit', (e) => {
@@ -236,19 +343,15 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             if (code === temporalOTP) {
                 switchView('create-password-view');
-                if (isRecoveryFlow) {
-                    document.querySelector('#create-password-view h1').innerText = 'Restablecer Contraseña';
-                    document.querySelector('#create-password-view .auth-info').innerText = 'Ingresa tu nueva contraseña para recuperar el acceso.';
-                } else {
-                    document.querySelector('#create-password-view h1').innerText = 'Crear Contraseña';
-                }
+                document.querySelector('#create-password-view h1').innerText = 'Restablecer Contraseña';
+                document.querySelector('#create-password-view .auth-info').innerText = 'Ingresa tu nueva contraseña para recuperar el acceso.';
             } else {
                 showError('otp-view', 'El código es incorrecto. Verifica e intenta de nuevo.');
             }
         });
     }
 
-    // === CREATE/RESET PASSWORD ===
+    // === RESET PASSWORD (for recovery only) ===
     const pwdForm = document.getElementById('create-password-form');
     if (pwdForm) {
         pwdForm.addEventListener('submit', async (e) => {
@@ -267,21 +370,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
 
             try {
-                if (isRecoveryFlow) {
-                    const user = await window.DB.getUserByEmail(temporalEmail);
-                    await window.DB.updateUserPassword(user.id, pwd);
-                    window.showSuccessModal('¡Contraseña Restablecida!', 'Ya puedes iniciar sesión con tu nueva contraseña.');
-                    switchView('login-view');
-                } else { // This branch handles registration
-                    await window.DB.createUser({
-                        email: temporalEmail,
-                        password: pwd,
-                        country_id: temporalCountryId,
-                        role: 'farmer'
-                    });
-                    window.showSuccessModal('¡Cuenta Creada Exitosamente!', 'Tu cuenta ha sido creada. Ahora puedes iniciar sesión.');
-                    switchView('login-view');
-                }
+                const user = await window.DB.getUserByEmail(temporalEmail);
+                await window.DB.updateUserPassword(user.id, pwd);
+                window.showSuccessModal('¡Contraseña Restablecida!', 'Ya puedes iniciar sesión con tu nueva contraseña.');
+                switchView('login-view');
                 document.getElementById('login-email').value = temporalEmail;
             } catch(err) {
                 showError('create-password-view', err.message);

@@ -131,7 +131,10 @@ class Database {
             avatar_url: userObj.avatar_url || null,
             bio: userObj.bio || null,
             phone: userObj.phone || null,
-            whatsapp: userObj.whatsapp || userObj.phone || null
+            phone_country_code: userObj.phone_country_code || '+503',
+            whatsapp: userObj.whatsapp || userObj.phone || null,
+            whatsapp_opt_in: userObj.whatsapp_opt_in !== undefined ? userObj.whatsapp_opt_in : false,
+            whatsapp_verified: false
         };
 
         if (this.supabase) {
@@ -158,7 +161,17 @@ class Database {
                     }
                 }
 
-                const { data, error } = await this.supabase.from('users').insert([baseUser]).select().single();
+                let { data, error } = await this.supabase.from('users').insert([baseUser]).select().single();
+                if (error && error.message?.includes('schema cache')) {
+                    // Si la columna aún no ha sido creada en Supabase, omitimos temporalmente esas columnas nuevas
+                    const legacyUser = { ...baseUser };
+                    delete legacyUser.phone_country_code;
+                    delete legacyUser.whatsapp_opt_in;
+                    delete legacyUser.whatsapp_verified;
+                    const retryRes = await this.supabase.from('users').insert([legacyUser]).select().single();
+                    data = retryRes.data;
+                    error = retryRes.error;
+                }
                 if (error) throw new Error(error.message);
                 return data;
             } catch(e) {
@@ -350,9 +363,18 @@ class Database {
                 };
                 
                 if (profileData.phone !== undefined) updatePayload.phone = profileData.phone;
+                if (profileData.phone_country_code !== undefined) updatePayload.phone_country_code = profileData.phone_country_code;
                 if (profileData.whatsapp !== undefined) updatePayload.whatsapp = profileData.whatsapp;
+                if (profileData.whatsapp_opt_in !== undefined) updatePayload.whatsapp_opt_in = profileData.whatsapp_opt_in;
                 
-                const { data, error } = await this.supabase.from('users').update(updatePayload).eq('id', userId).select();
+                let { data, error } = await this.supabase.from('users').update(updatePayload).eq('id', userId).select();
+                if (error && error.message?.includes('schema cache')) {
+                    delete updatePayload.phone_country_code;
+                    delete updatePayload.whatsapp_opt_in;
+                    const retryRes = await this.supabase.from('users').update(updatePayload).eq('id', userId).select();
+                    data = retryRes.data;
+                    error = retryRes.error;
+                }
                 if (error) throw new Error(error.message);
                 if (!data || data.length === 0) throw new Error("No se pudo actualizar el perfil en la nube. Revisa las políticas RLS de la tabla users.");
                 return;
@@ -1063,6 +1085,21 @@ class Database {
 
     // --- Soporte Prioritario y Videollamadas: Fichas de Reporte ---
     async notifyTicketEmail(report, type = 'new') {
+        // Primary: Use NotificationService (n8n webhook)
+        if (window.NotificationService) {
+            try {
+                if (type === 'call_alert') {
+                    await window.NotificationService.sendVideocallAlert(report);
+                } else {
+                    await window.NotificationService.sendTicketNotification(report, type);
+                }
+                return; // Success via n8n, no need for EmailJS
+            } catch(e) {
+                console.warn('[DB] NotificationService failed, trying EmailJS fallback:', e.message);
+            }
+        }
+
+        // Fallback: EmailJS (legacy)
         if (typeof emailjs === 'undefined' || typeof CONFIG === 'undefined') return;
         try {
             let toEmail = report.caller_email || 'soporte@agrosmart.global';
@@ -1072,15 +1109,15 @@ class Database {
             if (type === 'call_alert') {
                 toEmail = report.caller_email || 'usuario@gmail.com';
                 subject = '🎥 ¡ADMINISTRADOR EN SALA DE VIDEOLLAMADA - AGROSMART!';
-                msg = `Hola ${report.caller_name}, el administrador/creador ha ingresado a la sala de videollamada para atender tu caso (${report.subject}). Tienes un lapso de 5 a 10 minutos para entrar al panel de Soporte y conectarte, de lo contrario la sesión se cerrará y se te dará seguimiento por correo.`;
+                msg = `Hola ${report.caller_name}, el administrador ha ingresado a la sala de videollamada para atender tu caso (${report.subject}).`;
             } else if (type === 'escalated' || report.target_role === 'global_owner') {
                 toEmail = 'creadores.atlasdigital@agrosmart.global';
                 subject = '🚨 [ESCALAMIENTO GLOBAL] FICHA DIRIGIDA A CREADORES AGROSMART';
-                msg = `Un Administrador de Ministerio ha generado o escalado una ficha de problema para resolución de los Creadores Globales (Atlas Digital). Asunto: ${report.subject}. Descripción: ${report.description}.`;
+                msg = `Un Administrador de Ministerio ha escalado una ficha. Asunto: ${report.subject}. Descripción: ${report.description}.`;
             } else if (report.target_role === 'ministry_admin') {
                 toEmail = 'admin.ministerio@agrosmart.global';
                 subject = '🚨 [ALERTA PAÍS] NUEVO REPORTE DE AGRICULTOR / COOPERATIVA';
-                msg = `Se ha generado una ficha de reporte en su jurisdicción. Solicitante: ${report.caller_name}. Recuerde que el tiempo máximo de respuesta es de 72 horas.`;
+                msg = `Se ha generado una ficha de reporte en su jurisdicción. Solicitante: ${report.caller_name}. Tiempo máximo de respuesta: 72 horas.`;
             }
 
             if (CONFIG.EMAILJS_SERVICE_ID && CONFIG.EMAILJS_TEMPLATE_ID && CONFIG.EMAILJS_PUBLIC_KEY) {
@@ -1347,6 +1384,267 @@ class Database {
         // En el futuro los posts pueden estar vinculados al forum_id. 
         // Por ahora, simulamos un contador dinámico.
         return Math.floor(Math.random() * 50) + 1;
+    }
+
+    // --- Crop Activities (WhatsApp-Ready Unified Activity System) ---
+
+    /**
+     * Create a crop activity (abonado, fertilización, riego, poda, fumigación, cosecha)
+     */
+    async createCropActivity(activityObj) {
+        const payload = {
+            user_id: activityObj.user_id || null,
+            crop_id: activityObj.crop_id,
+            activity_type: activityObj.activity_type,
+            description: activityObj.description || null,
+            scheduled_date: activityObj.scheduled_date,
+            status: 'pendiente',
+            whatsapp_reminder_sent: false,
+            created_at: new Date().toISOString()
+        };
+
+        if (this.supabase) {
+            try {
+                const { data, error } = await this.supabase
+                    .from('crop_activities')
+                    .insert([payload])
+                    .select()
+                    .single();
+                if (error) throw new Error(error.message);
+                return data;
+            } catch(e) {
+                if (!e.message?.includes('Failed to fetch')) throw e;
+                console.warn('[Offline] Fallback to local DB for createCropActivity');
+            }
+        }
+
+        const db = this.getLocalDB();
+        if (!db.crop_activities) db.crop_activities = [];
+        const newActivity = { id: Date.now(), ...payload };
+        db.crop_activities.push(newActivity);
+        this.saveLocalDB(db);
+        return newActivity;
+    }
+
+    /**
+     * Get all activities for a user (used by Dashboard Reminders section)
+     */
+    async getCropActivitiesByUser(userId) {
+        if (!userId) return [];
+
+        if (this.supabase && navigator.onLine) {
+            try {
+                const { data, error } = await this.supabase
+                    .from('crop_activities')
+                    .select('*, crops(name, sowing_date)')
+                    .eq('user_id', userId)
+                    .order('scheduled_date', { ascending: true });
+                if (!error) return data || [];
+            } catch(e) {
+                console.warn('[DB] Error fetching user activities:', e);
+            }
+        }
+
+        const db = this.getLocalDB();
+        if (!db.crop_activities) return [];
+        const userCrops = (db.crops || []).filter(c => String(c.user_id) === String(userId));
+        const cropIds = userCrops.map(c => String(c.id));
+        
+        return db.crop_activities
+            .filter(a => cropIds.includes(String(a.crop_id)) || String(a.user_id) === String(userId))
+            .map(a => {
+                const crop = userCrops.find(c => String(c.id) === String(a.crop_id));
+                return {
+                    ...a,
+                    crops: crop ? { name: crop.name } : { name: 'Cultivo' }
+                };
+            })
+            .sort((a, b) => new Date(a.scheduled_date) - new Date(b.scheduled_date));
+    }
+
+    /**
+     * Bulk create crop activities (used when creating a crop)
+     */
+    async createCropActivitiesBulk(activities) {
+        if (!activities || activities.length === 0) return [];
+
+        const payloads = activities.map(a => ({
+            crop_id: a.crop_id,
+            activity_type: a.activity_type,
+            description: a.description || null,
+            scheduled_date: a.scheduled_date,
+            status: 'pendiente',
+            whatsapp_reminder_sent: false,
+            created_at: new Date().toISOString()
+        }));
+
+        if (this.supabase) {
+            try {
+                const { data, error } = await this.supabase
+                    .from('crop_activities')
+                    .insert(payloads)
+                    .select();
+                if (error) {
+                    console.warn('Warning creating crop activities:', error);
+                    throw new Error(error.message);
+                }
+                return data || [];
+            } catch(e) {
+                if (!e.message?.includes('Failed to fetch')) throw e;
+                console.warn('[Offline] Fallback to local DB for createCropActivitiesBulk');
+            }
+        }
+
+        const db = this.getLocalDB();
+        if (!db.crop_activities) db.crop_activities = [];
+        const created = payloads.map(p => ({ id: Date.now() + Math.random(), ...p }));
+        created.forEach(a => db.crop_activities.push(a));
+        this.saveLocalDB(db);
+        return created;
+    }
+
+    /**
+     * Get all activities for a specific crop
+     */
+    async getCropActivitiesByCrop(cropId) {
+        if (this.supabase && navigator.onLine) {
+            try {
+                const { data, error } = await this.supabase
+                    .from('crop_activities')
+                    .select('*')
+                    .eq('crop_id', cropId)
+                    .order('scheduled_date', { ascending: true });
+                if (!error) return data || [];
+            } catch(e) { /* Fallback */ }
+        }
+
+        const db = this.getLocalDB();
+        if (!db.crop_activities) return [];
+        return db.crop_activities
+            .filter(a => String(a.crop_id) === String(cropId))
+            .sort((a, b) => new Date(a.scheduled_date) - new Date(b.scheduled_date));
+    }
+
+    /**
+     * Get activities scheduled for a specific date (used by n8n)
+     */
+    async getCropActivitiesByDate(date) {
+        const dateStr = typeof date === 'string' ? date : date.toISOString().split('T')[0];
+
+        if (this.supabase && navigator.onLine) {
+            try {
+                const { data, error } = await this.supabase
+                    .from('crop_activities')
+                    .select('*, crops(name, user_id)')
+                    .eq('scheduled_date', dateStr)
+                    .eq('status', 'pendiente')
+                    .eq('whatsapp_reminder_sent', false);
+                if (!error) return data || [];
+            } catch(e) { /* Fallback */ }
+        }
+
+        const db = this.getLocalDB();
+        if (!db.crop_activities) return [];
+        return db.crop_activities.filter(a =>
+            a.scheduled_date === dateStr &&
+            a.status === 'pendiente' &&
+            !a.whatsapp_reminder_sent
+        );
+    }
+
+    /**
+     * Update the status of a crop activity
+     * @param {number} activityId
+     * @param {string} status - 'pendiente', 'realizado', 'reprogramado', 'omitido'
+     * @param {object} extraData - Optional: { completed_at, rescheduled_to, response_received }
+     */
+    async updateCropActivityStatus(activityId, status, extraData = {}) {
+        const updatePayload = { status, ...extraData };
+
+        if (status === 'realizado' && !updatePayload.completed_at) {
+            updatePayload.completed_at = new Date().toISOString();
+        }
+
+        if (this.supabase) {
+            try {
+                const { data, error } = await this.supabase
+                    .from('crop_activities')
+                    .update(updatePayload)
+                    .eq('id', activityId)
+                    .select()
+                    .single();
+                if (error) throw new Error(error.message);
+                return data;
+            } catch(e) {
+                if (!e.message?.includes('Failed to fetch')) throw e;
+                console.warn('[Offline] Fallback to local DB for updateCropActivityStatus');
+            }
+        }
+
+        const db = this.getLocalDB();
+        if (!db.crop_activities) return null;
+        const idx = db.crop_activities.findIndex(a => String(a.id) === String(activityId));
+        if (idx !== -1) {
+            db.crop_activities[idx] = { ...db.crop_activities[idx], ...updatePayload };
+            this.saveLocalDB(db);
+            return db.crop_activities[idx];
+        }
+        return null;
+    }
+
+    /**
+     * Mark activity reminder as sent (used after WhatsApp message is dispatched)
+     */
+    async markActivityReminderSent(activityId) {
+        return this.updateCropActivityStatus(activityId, 'pendiente', {
+            whatsapp_reminder_sent: true,
+            whatsapp_sent_at: new Date().toISOString()
+        });
+    }
+
+    /**
+     * Generate crop activities from the crop catalog fertilizer plan
+     * Maps fertilizer_plan entries to crop_activities with type 'abonado'
+     */
+    async generateCropActivitiesFromCatalog(cropObj) {
+        const catalog = window.CROP_CATALOG || {};
+        const normalize = (s) => (s || '').toLowerCase()
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .trim();
+
+        const normalizedName = normalize(cropObj.name);
+        let catalogEntry = null;
+
+        const catalogKeys = Object.keys(catalog);
+        const matchKey = catalogKeys.find(k => normalize(k) === normalizedName) ||
+                         catalogKeys.find(k => normalizedName.includes(normalize(k)) || normalize(k).includes(normalizedName));
+
+        if (matchKey) catalogEntry = catalog[matchKey];
+
+        if (catalogEntry && catalogEntry.fertilizer_plan) {
+            const sowingDate = new Date(cropObj.sowing_date);
+            const activities = catalogEntry.fertilizer_plan.map(plan => {
+                const scheduledDate = new Date(sowingDate);
+                scheduledDate.setDate(scheduledDate.getDate() + plan.day);
+
+                return {
+                    user_id: cropObj.user_id || null,
+                    crop_id: cropObj.id,
+                    activity_type: 'abonado',
+                    description: `${plan.product} (${plan.dose})`,
+                    scheduled_date: scheduledDate.toISOString().split('T')[0]
+                };
+            });
+
+            try {
+                await this.createCropActivitiesBulk(activities);
+                return true;
+            } catch(e) {
+                console.warn('Error creating crop activities from catalog:', e);
+            }
+        }
+        return false;
     }
 }
 

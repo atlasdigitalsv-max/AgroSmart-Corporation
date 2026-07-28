@@ -57,12 +57,13 @@
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script src="js/config.js"></script>
     <script src="js/database.js"></script>
+    <script src="js/notification-service.js"></script>
     <script src="js/layout.js"></script>
     <script>
         async function initContact() {
             if (window.initLayout) await window.initLayout('contact');
             
-            // Inicializar EmailJS
+            // Initialize EmailJS as fallback
             if (typeof emailjs !== 'undefined' && window.CONFIG && window.CONFIG.EMAILJS_PUBLIC_KEY) {
                 emailjs.init(window.CONFIG.EMAILJS_PUBLIC_KEY);
             }
@@ -167,10 +168,10 @@
                     submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span> Enviando...';
                     
                     try {
-                        await emailjs.send(window.CONFIG.EMAILJS_SERVICE_ID, window.CONFIG.EMAILJS_TEMPLATE_ID, {
-                            to_email: 'atlasdigitalsv@gmail.com', // Forzamos el envío a atlasdigitalsv
-                            from_name: name,
-                            reply_to: email,
+                        // Primary: NotificationService (n8n webhook)
+                        const result = await window.NotificationService.sendContactForm({
+                            name: name,
+                            email: email,
                             subject: subject,
                             message: message
                         });
@@ -188,7 +189,7 @@
                             emailInput.value = user.email;
                         }
                     } catch (error) {
-                        console.warn("Contact email warning:", error);
+                        console.warn("Contact send warning:", error);
                         Swal.fire({
                             icon: 'error',
                             title: 'Error de envío',

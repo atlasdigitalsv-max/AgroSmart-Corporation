@@ -55,7 +55,7 @@
                     </div>
                 </div>
 
-                <!-- REGISTER VIEW -->
+                <!-- REGISTER VIEW (WhatsApp-First) -->
                 <div id="register-view" class="auth-card view-section">
                     <div class="text-center mb-4">
                         <div class="icon-circle bg-primary-soft text-primary mx-auto mb-3" style="width: 50px; height: 50px; font-size: 24px;">
@@ -66,7 +66,7 @@
                     </div>
                     <div id="register-error" class="auth-error"></div>
                     <div class="auth-info small">
-                        Ingresa tu email y país. Te enviaremos un código de verificación para confirmar tu identidad.
+                        Completa tus datos para crear tu cuenta. Tu número de WhatsApp será tu canal principal de comunicación.
                     </div>
                     <form id="register-form">
                         <div class="auth-form-group">
@@ -79,7 +79,36 @@
                                 <option value="">Selecciona tu país...</option>
                             </select>
                         </div>
-                        <button type="submit" class="btn-auth w-100 py-3 mt-2">Continuar</button>
+                        <div class="auth-form-group">
+                            <label for="register-phone"><i class="bi bi-whatsapp text-success me-1"></i>Número de Teléfono</label>
+                            <div style="display: flex; gap: 8px;">
+                                <select id="register-phone-code" class="form-select auth-select" style="width: 140px; flex-shrink: 0;" required>
+                                    <!-- Populated by JS from CONFIG.PHONE_COUNTRY_CODES -->
+                                </select>
+                                <input type="tel" id="register-phone" class="form-control" required placeholder="7123 4567" pattern="[0-9]{7,15}" title="Solo números, mínimo 7 dígitos">
+                            </div>
+                            <small id="phone-format-hint" class="text-muted" style="font-size: 0.75rem; margin-top: 4px; display: block;">Formato: solo números sin guiones ni espacios</small>
+                        </div>
+                        <div class="auth-form-group">
+                            <label for="register-password">Contraseña (Mínimo 6 caracteres)</label>
+                            <input type="password" id="register-password" class="form-control" required placeholder="••••••••" minlength="6">
+                        </div>
+                        <div class="auth-form-group">
+                            <label for="register-password-confirm">Confirmar Contraseña</label>
+                            <input type="password" id="register-password-confirm" class="form-control" required placeholder="••••••••" minlength="6">
+                        </div>
+                        <div class="auth-form-group" style="margin-top: 12px;">
+                            <label class="d-flex align-items-start gap-3" style="cursor: pointer; font-weight: 500; text-transform: none; letter-spacing: 0;">
+                                <input type="checkbox" id="register-whatsapp-optin" checked style="width: 20px; height: 20px; margin-top: 2px; accent-color: #25D366; flex-shrink: 0;">
+                                <span style="font-size: 0.85rem; color: var(--text-main); line-height: 1.4;">
+                                    <i class="bi bi-whatsapp text-success"></i>
+                                    Acepto recibir recordatorios de mis cultivos por <strong>WhatsApp</strong>
+                                </span>
+                            </label>
+                        </div>
+                        <button type="submit" class="btn-auth w-100 py-3 mt-2">
+                            <i class="bi bi-check-circle me-2"></i>Crear Mi Cuenta
+                        </button>
                     </form>
                     <div class="auth-footer mt-4">
                         ¿Ya eres miembro? <a onclick="switchView('login-view')" class="text-primary fw-bold">Inicia sesión</a>
@@ -167,12 +196,13 @@
     <!-- Supabase SDK -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     
-    <!-- EmailJS SDK -->
+    <!-- EmailJS SDK (Fallback only) -->
     <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
     
-    <!-- DB and Config -->
+    <!-- DB, Config, and Services -->
     <script src="js/config.js"></script>
     <script src="js/database.js"></script>
+    <script src="js/notification-service.js"></script>
     <script src="js/layout.js"></script>
     <script src="js/auth.js"></script>
 </body>

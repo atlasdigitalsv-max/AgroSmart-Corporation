@@ -799,7 +799,16 @@
                     }
 
                     if (window.DB && typeof window.DB.createCrop === 'function') {
-                        await window.DB.createCrop(payload);
+                        const createdCrop = await window.DB.createCrop(payload);
+                        
+                        // Generate crop_activities for WhatsApp reminders
+                        if (createdCrop && window.DB.generateCropActivitiesFromCatalog) {
+                            try {
+                                await window.DB.generateCropActivitiesFromCatalog(createdCrop);
+                            } catch(actErr) {
+                                console.warn('Crop activities generation warning:', actErr);
+                            }
+                        }
                     }
                     window.location.href = 'dashboard.html';
                 } catch (err) {

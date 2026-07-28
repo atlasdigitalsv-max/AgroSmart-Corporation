@@ -15,7 +15,27 @@ window.CONFIG = {
  
     // Supabase Cloud Configuration
     SUPABASE_URL: 'https://atahzqmsfuizsxwyikao.supabase.co',
-    SUPABASE_ANON_KEY: ['sb_publishable_', 'M9-owcOPq9E-', 'KypfTRwTqA_O', '5Nf95Pg'].join('')
+    SUPABASE_ANON_KEY: ['sb_publishable_', 'M9-owcOPq9E-', 'KypfTRwTqA_O', '5Nf95Pg'].join(''),
+
+    // n8n Webhook Configuration (WhatsApp-First Communication)
+    N8N_WEBHOOK_URL: '', // Base URL de tu instancia n8n, ej: 'https://tu-n8n.com/webhook'
+    WHATSAPP_ENABLED: true, // Feature flag para activar/desactivar canal WhatsApp
+
+    // Códigos de país para selector de teléfono (Centroamérica + México + US)
+    PHONE_COUNTRY_CODES: [
+        { code: '+503', country: 'El Salvador', flag: '🇸🇻' },
+        { code: '+502', country: 'Guatemala', flag: '🇬🇹' },
+        { code: '+504', country: 'Honduras', flag: '🇭🇳' },
+        { code: '+505', country: 'Nicaragua', flag: '🇳🇮' },
+        { code: '+506', country: 'Costa Rica', flag: '🇨🇷' },
+        { code: '+507', country: 'Panamá', flag: '🇵🇦' },
+        { code: '+501', country: 'Belice', flag: '🇧🇿' },
+        { code: '+52',  country: 'México', flag: '🇲🇽' },
+        { code: '+1',   country: 'Estados Unidos', flag: '🇺🇸' },
+        { code: '+57',  country: 'Colombia', flag: '🇨🇴' },
+        { code: '+51',  country: 'Perú', flag: '🇵🇪' },
+        { code: '+593', country: 'Ecuador', flag: '🇪🇨' }
+    ]
 };
 const CONFIG = window.CONFIG;
 

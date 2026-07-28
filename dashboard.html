@@ -154,6 +154,47 @@
                 <!-- Crops JS -->
             </div>
 
+            <!-- Reminders Section (WhatsApp Integration) -->
+            <div class="agro-card p-4 animate-slide-up animate-delay-2 mb-5">
+                <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4 gap-3">
+                    <div class="d-flex align-items-center gap-3">
+                        <div class="p-3 rounded-4 fs-3 shadow-sm text-white" style="background: #25D366;">
+                            <i class="bi bi-whatsapp"></i>
+                        </div>
+                        <div>
+                            <h3 class="fw-bold m-0">Recordatorios de Cultivos</h3>
+                            <p class="text-muted mb-0 small">Sincronizados en tiempo real con WhatsApp Business API & n8n</p>
+                        </div>
+                    </div>
+
+                    <!-- Tabs Nav -->
+                    <ul class="nav nav-pills gap-2 bg-light p-2 rounded-pill" id="reminders-tabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-item-btn btn btn-sm rounded-pill active fw-bold px-3" id="tab-pendientes-btn" onclick="switchRemindersTab('pendiente')" style="background-color: #f59e0b; color: white;">
+                                🟡 Pendientes <span id="count-pendientes" class="badge bg-white text-dark ms-1">0</span>
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-item-btn btn btn-sm rounded-pill fw-bold px-3 text-muted" id="tab-realizados-btn" onclick="switchRemindersTab('realizado')">
+                                🟢 Realizados <span id="count-realizados" class="badge bg-secondary text-white ms-1">0</span>
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-item-btn btn btn-sm rounded-pill fw-bold px-3 text-muted" id="tab-reprogramados-btn" onclick="switchRemindersTab('reprogramado')">
+                                🔵 Reprogramados <span id="count-reprogramados" class="badge bg-secondary text-white ms-1">0</span>
+                            </button>
+                        </li>
+                    </ul>
+                </div>
+
+                <div id="reminders-content-container">
+                    <div class="text-center py-4 text-muted">
+                        <div class="spinner-border spinner-border-sm text-success me-2" role="status"></div>
+                        <span>Cargando recordatorios...</span>
+                    </div>
+                </div>
+            </div>
+
             <!-- Map Section -->
             <div class="agro-card p-4 animate-slide-up animate-delay-2 mb-5">
                 <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4 gap-3">
@@ -508,6 +549,168 @@
                 });
             }
         }
+
+        // --- DASHBOARD REMINDERS LOGIC (WhatsApp Integration) ---
+        let allUserActivities = [];
+        let activeRemindersTab = 'pendiente';
+
+        const TYPE_ICONS = {
+            'abonado': '🧪',
+            'fertilización': '🌿',
+            'riego': '💧',
+            'poda': '✂️',
+            'fumigación': '🛡️',
+            'cosecha': '🌾'
+        };
+
+        async function loadDashboardReminders(user) {
+            const container = document.getElementById('reminders-content-container');
+            if (!container || !user) return;
+
+            try {
+                allUserActivities = await window.DB.getCropActivitiesByUser(user.id);
+                updateRemindersTabCounts();
+                renderRemindersTab(activeRemindersTab);
+            } catch(e) {
+                console.warn('[Dashboard] Error cargando recordatorios:', e);
+                container.innerHTML = '<div class="text-center py-3 text-muted">No se pudieron cargar los recordatorios.</div>';
+            }
+        }
+
+        function updateRemindersTabCounts() {
+            const pendientes = allUserActivities.filter(a => a.status === 'pendiente');
+            const realizados = allUserActivities.filter(a => a.status === 'realizado');
+            const reprogramados = allUserActivities.filter(a => a.status === 'reprogramado');
+
+            document.getElementById('count-pendientes').textContent = pendientes.length;
+            document.getElementById('count-realizados').textContent = realizados.length;
+            document.getElementById('count-reprogramados').textContent = reprogramados.length;
+        }
+
+        window.switchRemindersTab = function(tabStatus) {
+            activeRemindersTab = tabStatus;
+            
+            // Toggle active classes on tab buttons
+            const btnPendientes = document.getElementById('tab-pendientes-btn');
+            const btnRealizados = document.getElementById('tab-realizados-btn');
+            const btnReprogramados = document.getElementById('tab-reprogramados-btn');
+
+            [btnPendientes, btnRealizados, btnReprogramados].forEach(b => {
+                b.classList.remove('active', 'text-white');
+                b.classList.add('text-muted');
+                b.style.backgroundColor = 'transparent';
+            });
+
+            if (tabStatus === 'pendiente') {
+                btnPendientes.classList.add('active', 'text-white');
+                btnPendientes.style.backgroundColor = '#f59e0b';
+            } else if (tabStatus === 'realizado') {
+                btnRealizados.classList.add('active', 'text-white');
+                btnRealizados.style.backgroundColor = '#10b981';
+            } else if (tabStatus === 'reprogramado') {
+                btnReprogramados.classList.add('active', 'text-white');
+                btnReprogramados.style.backgroundColor = '#3b82f6';
+            }
+
+            renderRemindersTab(tabStatus);
+        };
+
+        function renderRemindersTab(statusFilter) {
+            const container = document.getElementById('reminders-content-container');
+            if (!container) return;
+
+            const filtered = allUserActivities.filter(a => a.status === statusFilter);
+
+            if (filtered.length === 0) {
+                let emptyMsg = 'No tienes recordatorios pendientes.';
+                if (statusFilter === 'realizado') emptyMsg = 'Aún no has marcado actividades como realizadas.';
+                if (statusFilter === 'reprogramado') emptyMsg = 'No hay actividades reprogramadas.';
+
+                container.innerHTML = `
+                    <div class="text-center py-4 text-muted">
+                        <i class="bi bi-bell-slash fs-2 mb-2 d-block text-secondary"></i>
+                        <span>${emptyMsg}</span>
+                    </div>
+                `;
+                return;
+            }
+
+            let html = '<div class="row g-3">';
+            filtered.forEach(act => {
+                const dateStr = act.scheduled_date ? new Date(act.scheduled_date + 'T00:00:00').toLocaleDateString() : '—';
+                const cropName = act.crops ? act.crops.name : 'Cultivo';
+                const icon = TYPE_ICONS[act.activity_type] || '🌱';
+                const actLabel = act.activity_type ? (act.activity_type.charAt(0).toUpperCase() + act.activity_type.slice(1)) : 'Actividad';
+
+                let statusBadge = '';
+                if (act.status === 'pendiente') {
+                    statusBadge = '<span class="badge bg-warning text-dark"><i class="bi bi-clock me-1"></i>Pendiente</span>';
+                } else if (act.status === 'realizado') {
+                    const doneDate = act.completed_at ? new Date(act.completed_at).toLocaleDateString() : dateStr;
+                    statusBadge = `<span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Realizado (${doneDate})</span>`;
+                } else if (act.status === 'reprogramado') {
+                    const newDate = act.rescheduled_to ? new Date(act.rescheduled_to + 'T00:00:00').toLocaleDateString() : dateStr;
+                    statusBadge = `<span class="badge bg-primary"><i class="bi bi-calendar-event me-1"></i>Para: ${newDate}</span>`;
+                }
+
+                let waBadge = act.whatsapp_reminder_sent 
+                    ? '<span class="badge bg-success-soft text-success border border-success ms-1"><i class="bi bi-whatsapp me-1"></i>Enviado</span>'
+                    : '';
+
+                html += `
+                    <div class="col-md-6 col-lg-4">
+                        <div class="p-3 rounded-4 border bg-white shadow-sm h-100 d-flex flex-column justify-content-between">
+                            <div>
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <span class="fw-bold small text-success"><i class="bi bi-flower1 me-1"></i>${cropName}</span>
+                                    ${statusBadge}
+                                </div>
+                                <h5 class="fw-bold text-dark mb-1">${icon} ${actLabel}</h5>
+                                <p class="small text-muted mb-2">${act.description || 'Sin detalle adicional'}</p>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center pt-2 border-top mt-2">
+                                <span class="small text-muted"><i class="bi bi-calendar3 me-1"></i>${dateStr} ${waBadge}</span>
+                                ${act.status === 'pendiente' ? `
+                                    <button class="btn btn-sm btn-outline-success rounded-pill px-3" onclick="markDashboardActivityDone(${act.id})">
+                                        <i class="bi bi-check2"></i> Hecho
+                                    </button>
+                                ` : ''}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            html += '</div>';
+
+            container.innerHTML = html;
+        }
+
+        window.markDashboardActivityDone = async function(activityId) {
+            try {
+                await window.DB.updateCropActivityStatus(activityId, 'realizado');
+                const user = await AuthObj.getCurrentUser();
+                await loadDashboardReminders(user);
+                Swal.fire({
+                    title: '¡Excelente!',
+                    text: 'Actividad registrada como realizada.',
+                    icon: 'success',
+                    timer: 1500,
+                    showConfirmButton: false
+                });
+            } catch(e) {
+                Swal.fire('Error', 'No se pudo actualizar.', 'error');
+            }
+        };
+
+        // Hook loadDashboardReminders into initDashboard
+        const originalInitDashboard = initDashboard;
+        initDashboard = async function() {
+            await originalInitDashboard();
+            const user = await AuthObj.getCurrentUser();
+            if (user) {
+                await loadDashboardReminders(user);
+            }
+        };
 
         document.addEventListener('DOMContentLoaded', initDashboard);
     </script>
