@@ -15,7 +15,7 @@ window.CONFIG = {
  
     // Supabase Cloud Configuration
     SUPABASE_URL: 'https://atahzqmsfuizsxwyikao.supabase.co',
-    SUPABASE_ANON_KEY: ['sb_publishable_', 'M9-owcOPq9E-', 'KypfTRwTqA_O', '5Nf95Pg'].join(''),
+    SUPABASE_ANON_KEY: 'sb_publishable_M9-owcOPq9E-KypfTRwTqA_O5Nf95Pg',
 
     // n8n Webhook Configuration (WhatsApp-First Communication)
     N8N_WEBHOOK_URL: '', // Base URL de tu instancia n8n, ej: 'https://tu-n8n.com/webhook'

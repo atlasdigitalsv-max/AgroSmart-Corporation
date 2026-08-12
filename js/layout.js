@@ -126,7 +126,7 @@ async function renderNavbar(activePage) {
     }
 
     // List of pages that don't require login
-    const publicPages = ['index.html', 'dashboard.html', 'services.html', 'about.html', 'contact.html', 'catalog.html', 'soporte.html', 'manual_usuario.html'];
+    const publicPages = ['index.html', 'dashboard.html', 'services.html', 'about.html', 'contact.html', 'catalog.html', 'soporte.html', 'manual_usuario.html', 'privacy.html', 'data-deletion.html', 'terms.html'];
     const currentPath = window.location.pathname.toLowerCase();
     const fileName = currentPath.split('/').pop() || 'index.html';
     
