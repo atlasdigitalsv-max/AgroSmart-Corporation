@@ -162,8 +162,8 @@
                             <i class="bi bi-whatsapp"></i>
                         </div>
                         <div>
-                            <h3 class="fw-bold m-0">Recordatorios de Cultivos</h3>
-                            <p class="text-muted mb-0 small">Sincronizados en tiempo real con WhatsApp Business API & n8n</p>
+                            <h3 class="fw-bold m-0">Actividades Agrícolas</h3>
+                            <p class="text-muted mb-0 small">Programadas desde WhatsApp y sincronizadas con Supabase</p>
                         </div>
                     </div>
 
@@ -190,7 +190,7 @@
                 <div id="reminders-content-container">
                     <div class="text-center py-4 text-muted">
                         <div class="spinner-border spinner-border-sm text-success me-2" role="status"></div>
-                        <span>Cargando recordatorios...</span>
+                        <span>Cargando actividades...</span>
                     </div>
                 </div>
             </div>
@@ -550,9 +550,10 @@
             }
         }
 
-        // --- DASHBOARD REMINDERS LOGIC (WhatsApp Integration) ---
+        // --- DASHBOARD AGRICULTURAL ACTIVITIES (WhatsApp + Supabase) ---
         let allUserActivities = [];
         let activeRemindersTab = 'pendiente';
+        let activitiesRealtimeChannel = null;
 
         const TYPE_ICONS = {
             'abonado': '🧪',
@@ -572,8 +573,8 @@
                 updateRemindersTabCounts();
                 renderRemindersTab(activeRemindersTab);
             } catch(e) {
-                console.warn('[Dashboard] Error cargando recordatorios:', e);
-                container.innerHTML = '<div class="text-center py-3 text-muted">No se pudieron cargar los recordatorios.</div>';
+                console.warn('[Dashboard] Error cargando actividades:', e);
+                container.innerHTML = '<div class="text-center py-3 text-muted">No se pudieron cargar las actividades.</div>';
             }
         }
 
@@ -622,7 +623,7 @@
             const filtered = allUserActivities.filter(a => a.status === statusFilter);
 
             if (filtered.length === 0) {
-                let emptyMsg = 'No tienes recordatorios pendientes.';
+                let emptyMsg = 'No tienes actividades pendientes actualmente.';
                 if (statusFilter === 'realizado') emptyMsg = 'Aún no has marcado actividades como realizadas.';
                 if (statusFilter === 'reprogramado') emptyMsg = 'No hay actividades reprogramadas.';
 
@@ -638,9 +639,12 @@
             let html = '<div class="row g-3">';
             filtered.forEach(act => {
                 const dateStr = act.scheduled_date ? new Date(act.scheduled_date + 'T00:00:00').toLocaleDateString() : '—';
-                const cropName = act.crops ? act.crops.name : 'Cultivo';
+                const cropName = act.crop_name || (act.crops ? act.crops.name : null) || 'Cultivo';
                 const icon = TYPE_ICONS[act.activity_type] || '🌱';
                 const actLabel = act.activity_type ? (act.activity_type.charAt(0).toUpperCase() + act.activity_type.slice(1)) : 'Actividad';
+                const timeStr = act.scheduled_time
+                    ? new Date(`2000-01-01T${String(act.scheduled_time).slice(0, 8)}`).toLocaleTimeString('es-SV', { hour: 'numeric', minute: '2-digit', hour12: true })
+                    : '—';
 
                 let statusBadge = '';
                 if (act.status === 'pendiente') {
@@ -666,14 +670,23 @@
                                     ${statusBadge}
                                 </div>
                                 <h5 class="fw-bold text-dark mb-1">${icon} ${actLabel}</h5>
-                                <p class="small text-muted mb-2">${act.description || 'Sin detalle adicional'}</p>
+                                ${act.description ? `<p class="small text-muted mb-2">${act.description}</p>` : ''}
+                                <div class="small text-muted mb-2">
+                                    <div><i class="bi bi-calendar3 me-1"></i>${dateStr}</div>
+                                    <div><i class="bi bi-clock me-1"></i>${timeStr}</div>
+                                </div>
                             </div>
                             <div class="d-flex justify-content-between align-items-center pt-2 border-top mt-2">
-                                <span class="small text-muted"><i class="bi bi-calendar3 me-1"></i>${dateStr} ${waBadge}</span>
-                                ${act.status === 'pendiente' ? `
-                                    <button class="btn btn-sm btn-outline-success rounded-pill px-3" onclick="markDashboardActivityDone(${act.id})">
-                                        <i class="bi bi-check2"></i> Hecho
-                                    </button>
+                                <span class="small text-muted">${waBadge}</span>
+                                ${['pendiente', 'reprogramado'].includes(act.status) ? `
+                                    <div class="d-flex gap-2">
+                                        <button class="btn btn-sm btn-outline-success rounded-pill px-3" onclick="markDashboardActivityDone(${act.id})">
+                                            <i class="bi bi-check2"></i> Completar
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-primary rounded-pill px-3" onclick="rescheduleDashboardActivity(${act.id})">
+                                            <i class="bi bi-calendar-event"></i> Reprogramar
+                                        </button>
+                                    </div>
                                 ` : ''}
                             </div>
                         </div>
@@ -687,6 +700,15 @@
 
         window.markDashboardActivityDone = async function(activityId) {
             try {
+                const confirmation = await Swal.fire({
+                    title: '¿Confirmas que realizaste esta actividad?',
+                    icon: 'question',
+                    showCancelButton: true,
+                    cancelButtonText: 'Cancelar',
+                    confirmButtonText: 'Sí, completar',
+                    confirmButtonColor: '#10b981'
+                });
+                if (!confirmation.isConfirmed) return;
                 await window.DB.updateCropActivityStatus(activityId, 'realizado');
                 const user = await AuthObj.getCurrentUser();
                 await loadDashboardReminders(user);
@@ -702,6 +724,56 @@
             }
         };
 
+        window.rescheduleDashboardActivity = async function(activityId) {
+            const activity = allUserActivities.find(a => String(a.id) === String(activityId));
+            if (!activity) return;
+            const currentDate = activity.scheduled_date || '';
+            const currentTime = String(activity.scheduled_time || '08:00').slice(0, 5);
+            const result = await Swal.fire({
+                title: 'Reprogramar actividad',
+                html: `
+                    <label class="form-label d-block text-start">Nueva fecha</label>
+                    <input id="activity-new-date" type="date" class="swal2-input m-0 mb-3 w-100" value="${currentDate}">
+                    <label class="form-label d-block text-start">Nueva hora</label>
+                    <input id="activity-new-time" type="time" class="swal2-input m-0 w-100" value="${currentTime}">
+                `,
+                showCancelButton: true,
+                cancelButtonText: 'Cancelar',
+                confirmButtonText: 'Guardar cambio',
+                confirmButtonColor: '#3b82f6',
+                preConfirm: () => {
+                    const scheduled_date = document.getElementById('activity-new-date').value;
+                    const scheduled_time = document.getElementById('activity-new-time').value;
+                    if (!scheduled_date || !scheduled_time) {
+                        Swal.showValidationMessage('Selecciona la fecha y la hora.');
+                        return false;
+                    }
+                    return { scheduled_date, scheduled_time };
+                }
+            });
+            if (!result.isConfirmed) return;
+            try {
+                await window.DB.rescheduleCropActivity(activityId, result.value.scheduled_date, result.value.scheduled_time);
+                const user = await AuthObj.getCurrentUser();
+                await loadDashboardReminders(user);
+                await Swal.fire('Actividad reprogramada', 'Se actualizó la misma actividad sin crear duplicados.', 'success');
+            } catch (e) {
+                Swal.fire('Error', 'No se pudo reprogramar la actividad.', 'error');
+            }
+        };
+
+        function subscribeToActivityChanges(user) {
+            const client = window.DB && window.DB.supabase;
+            if (!client || !user || !client.channel) return;
+            if (activitiesRealtimeChannel) client.removeChannel(activitiesRealtimeChannel);
+            activitiesRealtimeChannel = client
+                .channel(`dashboard-activities-${user.id}`)
+                .on('postgres_changes', {
+                    event: '*', schema: 'public', table: 'crop_activities', filter: `user_id=eq.${user.id}`
+                }, () => loadDashboardReminders(user))
+                .subscribe();
+        }
+
         // Hook loadDashboardReminders into initDashboard
         const originalInitDashboard = initDashboard;
         initDashboard = async function() {
@@ -709,6 +781,7 @@
             const user = await AuthObj.getCurrentUser();
             if (user) {
                 await loadDashboardReminders(user);
+                subscribeToActivityChanges(user);
             }
         };
 

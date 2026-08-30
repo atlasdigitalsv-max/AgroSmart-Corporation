@@ -1396,8 +1396,10 @@ class Database {
             user_id: activityObj.user_id || null,
             crop_id: activityObj.crop_id,
             activity_type: activityObj.activity_type,
+            crop_name: activityObj.crop_name || null,
             description: activityObj.description || null,
             scheduled_date: activityObj.scheduled_date,
+            scheduled_time: activityObj.scheduled_time || null,
             status: 'pendiente',
             whatsapp_reminder_sent: false,
             created_at: new Date().toISOString()
@@ -1537,7 +1539,7 @@ class Database {
                     .from('crop_activities')
                     .select('*, crops(name, user_id)')
                     .eq('scheduled_date', dateStr)
-                    .eq('status', 'pendiente')
+                    .in('status', ['pendiente', 'reprogramado'])
                     .eq('whatsapp_reminder_sent', false);
                 if (!error) return data || [];
             } catch(e) { /* Fallback */ }
@@ -1547,7 +1549,7 @@ class Database {
         if (!db.crop_activities) return [];
         return db.crop_activities.filter(a =>
             a.scheduled_date === dateStr &&
-            a.status === 'pendiente' &&
+            ['pendiente', 'reprogramado'].includes(a.status) &&
             !a.whatsapp_reminder_sent
         );
     }
@@ -1590,6 +1592,18 @@ class Database {
             return db.crop_activities[idx];
         }
         return null;
+    }
+
+    /** Reprogram an existing activity without creating a duplicate. */
+    async rescheduleCropActivity(activityId, scheduledDate, scheduledTime) {
+        return this.updateCropActivityStatus(activityId, 'reprogramado', {
+            scheduled_date: scheduledDate,
+            scheduled_time: scheduledTime,
+            rescheduled_to: scheduledDate,
+            response_received: 'reprogramado',
+            whatsapp_reminder_sent: false,
+            whatsapp_sent_at: null
+        });
     }
 
     /**
