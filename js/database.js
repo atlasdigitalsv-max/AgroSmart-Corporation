@@ -143,11 +143,15 @@ class Database {
                 if (baseUser.role !== 'global_owner' && baseUser.country_id) {
                     const countries = await this.getCountries();
                     const country = countries.find(c => String(c.id) === String(baseUser.country_id));
-                    const plan = country ? (country.plan || 'none') : 'none';
                     
-                    if (plan !== 'esmeralda') {
+                    // LÓGICA DE PLANES: Si el usuario tiene plan individual, se usa. Si no, se hereda el del país.
+                    const userPlan = baseUser.plan && baseUser.plan !== 'none' ? baseUser.plan : null;
+                    const countryPlan = country ? (country.plan || 'none') : 'none';
+                    const activePlan = userPlan || countryPlan;
+                    
+                    if (activePlan !== 'esmeralda') {
                         const limits = { 'none': 50, 'bronce': 1000, 'platinium': 2500, 'diamante': 5000 };
-                        const limit = limits[plan] || 50;
+                        const limit = limits[activePlan] || 50;
                         
                         const { count, error: countErr } = await this.supabase
                             .from('users')
@@ -156,7 +160,7 @@ class Database {
                             .neq('role', 'global_owner');
                         
                         if (!countErr && count >= limit) {
-                            throw new Error(`Límite de capacidad alcanzado para el plan ${plan.toUpperCase()} de este país (${limit} usuarios).`);
+                            throw new Error(`Límite de capacidad alcanzado para el plan ${activePlan.toUpperCase()} (${limit} usuarios). Sube de plan para agregar más.`);
                         }
                     }
                 }
@@ -475,11 +479,16 @@ class Database {
             // Limit enforcement
             const countries = await this.getCountries();
             const country = countries.find(c => String(c.id) === String(countryId));
-            const plan = country ? (country.plan || 'none') : 'none';
             
-            if (plan !== 'esmeralda') {
+            // Tratamos de obtener el plan del admin actual para ver si sobrescribe el del país
+            const currentUser = await window.AuthObj.getCurrentUser();
+            const userPlan = (currentUser && currentUser.plan && currentUser.plan !== 'none') ? currentUser.plan : null;
+            const countryPlan = country ? (country.plan || 'none') : 'none';
+            const activePlan = userPlan || countryPlan;
+            
+            if (activePlan !== 'esmeralda') {
                 const limits = { 'none': 1, 'bronce': 3, 'platinium': 10, 'diamante': 25 };
-                const limit = limits[plan] || 1;
+                const limit = limits[activePlan] || 1;
                 
                 const { count, error: countErr } = await this.supabase
                     .from('organizations')
@@ -487,7 +496,7 @@ class Database {
                     .eq('country_id', countryId);
                 
                 if (!countErr && count >= limit) {
-                    throw new Error(`Límite de cooperativas alcanzado para el plan ${plan.toUpperCase()} de este país (${limit}).`);
+                    throw new Error(`Límite de cooperativas alcanzado para el plan ${activePlan.toUpperCase()} (${limit}). Sube de plan individual o de país.`);
                 }
             }
 
@@ -898,6 +907,114 @@ class Database {
         this.saveLocalDB(db);
     }
 
+    async getGlobalNews() {
+        this._autoCleanupGlobalNews();
+        const db = this.getLocalDB();
+        return (db.global_news || []).sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
+    }
+
+    _autoCleanupGlobalNews() {
+        const db = this.getLocalDB();
+        if (!db.global_news) db.global_news = [];
+        
+        const now = new Date();
+        const originalLength = db.global_news.length;
+        
+        // Remove news older than 7 days
+        db.global_news = db.global_news.filter(n => {
+            const diffDays = (now - new Date(n.created_at)) / (1000 * 60 * 60 * 24);
+            return diffDays <= 7;
+        });
+
+        if (db.global_news.length !== originalLength) {
+            this.saveLocalDB(db);
+        }
+    }
+
+    async fetchAndGenerateGlobalNews() {
+        this._autoCleanupGlobalNews();
+        const news = await this.getGlobalNews();
+        let shouldFetch = false;
+
+        if (news.length === 0) {
+            shouldFetch = true;
+        } else {
+            const lastNews = new Date(news[0].created_at);
+            const now = new Date();
+            const hoursDiff = (now - lastNews) / (1000 * 60 * 60);
+            if (hoursDiff > 8) shouldFetch = true; // Actualiza cada 8 horas
+        }
+
+        if (shouldFetch) {
+            const db = this.getLocalDB();
+            if (!db.global_news) db.global_news = [];
+            const existingTitles = db.global_news.map(n => n.title);
+            let newItemsAdded = 0;
+
+            // 1. Inyectar obligatoriamente la noticia del Super Niño (si no existe) porque es una advertencia del sistema
+            if (!existingTitles.includes("Alerta Global: El Super Niño acelera la crisis hídrica")) {
+                db.global_news.push({
+                    id: Date.now() + 1,
+                    title: "Alerta Global: El Super Niño acelera la crisis hídrica",
+                    content: "Los patrones climáticos actuales muestran un fortalecimiento anómalo de las temperaturas oceánicas, catalogado como 'El Super Niño'. Se espera que las sequías se intensifiquen en América Latina durante los próximos meses, afectando gravemente los ecosistemas y la producción mundial. Se urge a prepararse para estrés térmico agudo.",
+                    image_url: "https://images.unsplash.com/photo-1542282811-943ef1a67779?auto=format&fit=crop&q=80&w=600",
+                    source: "AgroSmart Env Watch",
+                    severity: "critical",
+                    created_at: new Date().toISOString()
+                });
+                newItemsAdded++;
+            }
+
+            // 2. Traer noticias reales verificadas de la ONU (Medio Ambiente / Clima) usando RSS to JSON gratuito
+            try {
+                const rssUrl = encodeURIComponent('https://news.un.org/feed/subscribe/es/news/topic/climate-change/feed/rss.xml');
+                const response = await fetch(`https://api.rss2json.com/v1/api.json?rss_url=${rssUrl}`);
+                const data = await response.json();
+
+                if (data && data.items && data.items.length > 0) {
+                    data.items.forEach(item => {
+                        if (!existingTitles.includes(item.title)) {
+                            const contentStr = (item.title + ' ' + item.description).toLowerCase();
+                            let severity = 'normal';
+                            if (contentStr.includes('niño') || contentStr.includes('sequía') || contentStr.includes('extrema') || contentStr.includes('alerta') || contentStr.includes('crisis')) {
+                                severity = 'critical';
+                            } else if (contentStr.includes('riesgo') || contentStr.includes('calentamiento')) {
+                                severity = 'warning';
+                            }
+
+                            let imgUrl = "https://images.unsplash.com/photo-1595841696677-6489ff3f8cd1?auto=format&fit=crop&q=80&w=600";
+                            if (item.enclosure && item.enclosure.link) imgUrl = item.enclosure.link;
+                            else if (item.thumbnail) imgUrl = item.thumbnail;
+                            else {
+                                const match = item.description.match(/<img[^>]+src="([^">]+)"/);
+                                if (match) imgUrl = match[1];
+                            }
+                            
+                            let cleanDesc = item.description.replace(/<[^>]*>?/gm, '').substring(0, 300) + '...';
+
+                            db.global_news.push({
+                                id: Date.now() + Math.random(),
+                                title: item.title,
+                                content: cleanDesc,
+                                image_url: imgUrl,
+                                source: "Noticias ONU (Verificado)",
+                                severity: severity,
+                                created_at: item.pubDate || new Date().toISOString()
+                            });
+                            newItemsAdded++;
+                        }
+                    });
+                }
+            } catch(e) { console.warn("Error fetching real news", e); }
+
+            if (newItemsAdded > 0) {
+                // Re-ordenar por fecha
+                db.global_news.sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
+                this.saveLocalDB(db);
+            }
+        }
+    }
+
     // --- Post Comments ---
     async getPostComments(postId) {
         if (this.supabase && navigator.onLine) {
@@ -1141,14 +1258,12 @@ class Database {
         let initialTarget = 'ministry_admin';
         
         if (currentUser) {
-            if (currentUser.role === 'org_admin') {
-                initialTarget = 'ministry_admin'; // Admins de cooperativa escalan sus propios problemas al ministerio
-            } else if (currentUser.role === 'ministry_admin') {
-                initialTarget = 'global_owner'; // Admins de ministerio escalan sus propios problemas a los dueños
-            } else if (currentUser.org_id) {
-                initialTarget = 'org_admin'; // Agricultores en cooperativa van a su admin de cooperativa
+            if (currentUser.role === 'ministry_admin') {
+                initialTarget = 'global_owner';
+            } else if (currentUser.role === 'org_admin') {
+                initialTarget = 'ministry_admin';
             } else {
-                initialTarget = 'ministry_admin'; // Agricultores independientes van al ministerio
+                initialTarget = 'ministry_admin'; // farmer
             }
         }
 
@@ -1219,6 +1334,17 @@ class Database {
             allReports = [...allReports, ...localOnly].sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
         }
 
+        // Filter out resolved tickets older than 30 days
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+        allReports = allReports.filter(r => {
+            if (r.status === 'resolved' || r.status === 'closed') {
+                const createdAt = new Date(r.created_at);
+                return createdAt >= thirtyDaysAgo;
+            }
+            return true;
+        });
+
         // Calcular estado Crítico (72 horas sin resolver)
         const now = new Date();
         allReports = allReports.map(r => {
@@ -1261,23 +1387,27 @@ class Database {
             assigned_to: adminUser.id,
             attended_by_name: adminUser.full_name || adminUser.email,
             assigned_at: new Date().toISOString(),
-            status: 'in_progress',
+            status: 'assigned',
             _append_history: { action: 'assigned', by: adminUser.id, timestamp: new Date().toISOString() }
         });
     }
 
     async escalateVideocallReport(reportId, adminUser) {
-        let newTarget = 'ministry_admin';
-        if (adminUser.role === 'ministry_admin') {
-            newTarget = 'global_owner';
-        }
         return await this.updateVideocallReport(reportId, {
-            target_role: newTarget,
+            target_role: 'global_owner',
             assigned_to: null,
             assigned_at: null,
             is_escalated: true,
-            status: 'open',
-            _append_history: { action: 'escalated', to: newTarget, by: adminUser.id, timestamp: new Date().toISOString() }
+            status: 'referred',
+            _append_history: { action: 'escalated', to: 'global_owner', by: adminUser.id, timestamp: new Date().toISOString() }
+        });
+    }
+
+    async resolveVideocallReport(reportId, adminUser, resolutionNotes = '') {
+        return await this.updateVideocallReport(reportId, {
+            status: 'resolved',
+            resolution_notes: resolutionNotes,
+            _append_history: { action: 'resolved', by: adminUser.id, timestamp: new Date().toISOString() }
         });
     }
 

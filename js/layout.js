@@ -94,6 +94,12 @@ const NAVBAR_TEMPLATE = `
         <a href="admin_panel.html" class="btn-secondary admin-panel-btn" data-page="admin_panel" id="nav-admin-link" style="display: none;">
             <i class="bi bi-speedometer2 me-2"></i> Administración
         </a>
+        <a href="country_performance.html" class="btn-secondary text-nowrap" id="nav-country-perf" data-page="country_performance" style="display: none;">
+            <i class="bi bi-bar-chart-line-fill me-2" style="color: #10b981;"></i> Desempeño del País
+        </a>
+        <a href="global_performance.html" class="btn-secondary text-nowrap" id="nav-global-perf" data-page="global_performance" style="display: none;">
+            <i class="bi bi-globe-americas me-2" style="color: #3b82f6;"></i> Desempeño Global
+        </a>
         <a href="services.html" class="btn-secondary text-nowrap" data-page="services">
             <i class="bi bi-gear-wide-connected me-2"></i> Servicios
         </a>
@@ -195,12 +201,16 @@ async function renderNavbar(activePage) {
     const agroredLink = container.querySelector('[data-page="agrored"]');
     const planLink = container.querySelector('#nav-plan-link');
     const aiLink = container.querySelector('#nav-ai-link') || container.querySelector('[data-page="ai_chat"]');
+    const navCountryPerf = container.querySelector('#nav-country-perf');
+    const navGlobalPerf = container.querySelector('#nav-global-perf');
     
     // Hide all role-based items by default to prevent flicker
     if (adminLink) adminLink.style.display = 'none';
     if (planLink) planLink.style.display = 'none';
     if (aiLink) aiLink.style.display = 'none';
     if (agroredLink) agroredLink.style.display = 'none';
+    if (navCountryPerf) navCountryPerf.style.display = 'none';
+    if (navGlobalPerf) navGlobalPerf.style.display = 'none';
     protectedItems.forEach(item => item.style.display = 'none');
 
     // Restore Plan Badge Visibility (Except for Creador/Global Owner as requested)
@@ -232,6 +242,16 @@ async function renderNavbar(activePage) {
         // Admin Visibility
         if (adminLink) {
             adminLink.style.setProperty('display', isAdmin ? 'flex' : 'none', 'important');
+        }
+
+        // Performance Views Visibility
+        if (navCountryPerf) {
+            const isCountryAdmin = ['ministry_admin', 'org_admin'].includes(user.role);
+            navCountryPerf.style.setProperty('display', isCountryAdmin ? 'flex' : 'none', 'important');
+        }
+        if (navGlobalPerf) {
+            const isGlobal = user.role === 'global_owner';
+            navGlobalPerf.style.setProperty('display', isGlobal ? 'flex' : 'none', 'important');
         }
 
         // Plan Dashboard Visibility (Global Owner & Ministry Admin)

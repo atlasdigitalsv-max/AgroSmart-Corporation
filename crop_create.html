@@ -491,7 +491,10 @@
                     </div>
                     <div class="d-flex justify-content-between align-items-center mt-2 px-2 text-muted small">
                         <span>💡 <strong>Instrucciones:</strong> Haz clic en el globo para fijar el punto central. Clics adicionales dibujan el polígono de tu parcela.</span>
-                        <span id="coords-badge" class="badge bg-secondary opacity-75">Sin coordenadas</span>
+                        <div>
+                            <span id="elevation-badge" class="badge bg-info text-dark opacity-75 me-2" style="display: none;"><i class="bi bi-rulers"></i> Altitud: -- pies</span>
+                            <span id="coords-badge" class="badge bg-secondary opacity-75">Sin coordenadas</span>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -667,6 +670,7 @@
                                     });
                                 }
                                 updateClimateFeedback(lat, lon);
+                                fetchAltitudeForPoint(lat, lon);
                                 const clearBtn = document.getElementById('btn-clear-polygon');
                                 if (clearBtn) clearBtn.style.display = 'inline-flex';
                             } else {
@@ -737,6 +741,7 @@
                                         });
                                     }
                                     updateClimateFeedback(parseFloat(crop.latitude), parseFloat(crop.longitude));
+                                    fetchAltitudeForPoint(parseFloat(crop.latitude), parseFloat(crop.longitude));
                                     const coordsBadge = document.getElementById('coords-badge');
                                     if (coordsBadge) coordsBadge.innerText = `GPS: ${parseFloat(crop.latitude).toFixed(4)}, ${parseFloat(crop.longitude).toFixed(4)}`;
                                 }
@@ -747,6 +752,7 @@
                                 point: { pixelSize: 14, color: Cesium.Color.YELLOW, outlineColor: Cesium.Color.WHITE, outlineWidth: 2 }
                             });
                             updateClimateFeedback(parseFloat(crop.latitude), parseFloat(crop.longitude));
+                            fetchAltitudeForPoint(parseFloat(crop.latitude), parseFloat(crop.longitude));
                             const coordsBadge = document.getElementById('coords-badge');
                             if (coordsBadge) coordsBadge.innerText = `GPS: ${parseFloat(crop.latitude).toFixed(4)}, ${parseFloat(crop.longitude).toFixed(4)}`;
                         }
@@ -823,11 +829,34 @@
             });
         }
 
-        async function updateClimateFeedback(lat, lon) {
+        function fetchAltitudeForPoint(lat, lon) {
+            const elevBadge = document.getElementById('elevation-badge');
+            if (elevBadge) {
+                elevBadge.style.display = 'inline-block';
+                elevBadge.innerHTML = `<i class="bi bi-rulers"></i> Calculando altitud...`;
+                elevBadge.className = 'badge bg-info text-dark opacity-75 me-2';
+                
+                fetch(`https://api.open-meteo.com/v1/elevation?latitude=${lat}&longitude=${lon}`)
+                    .then(res => res.json())
+                    .then(data => {
+                        if(data && data.elevation && data.elevation.length > 0) {
+                            const elevMeters = data.elevation[0];
+                            const elevFeet = Math.round(elevMeters * 3.28084);
+                            elevBadge.innerHTML = `<i class="bi bi-rulers"></i> Altitud base: ${elevFeet} pies`;
+                            elevBadge.className = 'badge bg-success text-white me-2 shadow-sm';
+                        }
+                    })
+                    .catch(err => {
+                        elevBadge.innerHTML = `<i class="bi bi-rulers"></i> Altitud: N/D`;
+                    });
+            }
+        }
+
+        function updateClimateFeedback(lat, lon) {
             const feedback = document.getElementById('climate-feedback');
-            if (!feedback || !window.CONFIG || !window.CONFIG.OPENWEATHERMAP_API_KEY) return;
+            if (!feedback) return;
             
-            const url = `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&units=metric&lang=es&appid=${window.CONFIG.OPENWEATHERMAP_API_KEY}`;
+            const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,precipitation,wind_speed_10m&timezone=auto`;
             feedback.style.display = 'block';
             feedback.innerHTML = `
                 <div class="text-center w-100 py-1 text-muted">
@@ -840,9 +869,9 @@
                 const res = await fetch(url);
                 if (!res.ok) throw new Error("Weather fetch failed");
                 const data = await res.json();
-                const temp = Math.round(data.main.temp);
-                const humidity = data.main.humidity;
-                const weatherDesc = data.weather && data.weather[0] ? data.weather[0].description : 'Normal';
+                const temp = Math.round(data.current.temperature_2m);
+                const humidity = Math.round(data.current.relative_humidity_2m);
+                const weatherDesc = data.current.precipitation > 0 ? 'Lluvioso' : (temp > 30 ? 'Soleado' : 'Parcialmente Nublado');
 
                 const normalize = (s) => (s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
                 const nameEl = document.getElementById('name');

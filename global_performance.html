@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Desempeño Global - AgroSmart</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="css/modern_agro.css?v=3">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+</head>
+
+<body class="page-body">
+    <div id="navbar-container"></div>
+
+    <div class="container mt-4 animate-slide-up">
+        <div class="d-flex justify-content-between align-items-center mb-5 flex-wrap gap-3">
+            <h1 class="dashboard-title m-0" style="text-align: left;">
+                <i class="bi bi-globe-americas me-2" style="color: #3b82f6;"></i>Desempeño Global
+            </h1>
+            <div class="d-flex align-items-center gap-3">
+                <select id="country-selector" class="form-select form-select-sm shadow-sm" style="width: auto; min-width: 200px; font-weight: 600;">
+                    <option value="global" selected>🌍 Globalmente</option>
+                    <!-- Countries injected here -->
+                </select>
+                <div id="global-badge-container">
+                    <span class="badge bg-warning text-dark px-3 py-2 fs-6 rounded-pill fw-bold border border-warning shadow-sm">
+                        <i class="bi bi-star-fill me-1"></i> Creador Global
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        <div class="row g-4 mb-5">
+            <!-- Gráfica de Clima -->
+            <div class="col-md-6">
+                <div class="agro-card p-4 text-center h-100 border-primary" style="border-width: 2px;">
+                    <h5 class="fw-bold mb-4" id="weather-chart-title">Evolución del Clima (Selecciona un país)</h5>
+                    <div id="weather-chart-container" style="position: relative; height: 300px;">
+                        <canvas id="countryWeatherChart"></canvas>
+                        <div id="weather-overlay" class="position-absolute top-0 start-0 w-100 h-100 d-flex flex-column align-items-center justify-content-center bg-white bg-opacity-75" style="z-index: 10;">
+                            <i class="bi bi-map-fill text-muted mb-2" style="font-size: 2rem;"></i>
+                            <p class="text-muted fw-bold">Selecciona un país para ver el pronóstico.</p>
+                        </div>
+                    </div>
+                    <div id="weather-alert-container" class="mt-3"></div>
+                </div>
+            </div>
+
+            <!-- Gráfica de Cultivos Globales -->
+            <div class="col-md-6">
+                <div class="agro-card p-4 text-center h-100 border-success" style="border-width: 2px;">
+                    <h5 class="fw-bold mb-4" id="crops-chart-title">Producción Agrícola Mundial</h5>
+                    <div style="position: relative; height: 300px;">
+                        <canvas id="globalCropsChart"></canvas>
+                    </div>
+                    <p class="text-muted small mt-3">Tipos de cultivos más producidos a nivel mundial.</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="row g-4">
+            <div class="col-md-4">
+                <div class="weather-widget d-flex align-items-center justify-content-between p-4 bg-white shadow-sm border-0 rounded-4">
+                    <div class="d-flex align-items-center gap-4">
+                        <div class="fs-1 text-primary">👥</div>
+                        <div>
+                            <div class="info-label mb-0 text-muted">Usuarios Totales</div>
+                            <div class="fs-4 fw-bold text-dark" id="total-users">0</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="weather-widget d-flex align-items-center justify-content-between p-4 bg-white shadow-sm border-0 rounded-4">
+                    <div class="d-flex align-items-center gap-4">
+                        <div class="fs-1 text-success">🌱</div>
+                        <div>
+                            <div class="info-label mb-0 text-muted">Cultivos Activos M.</div>
+                            <div class="fs-4 fw-bold text-dark" id="total-crops">0</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="weather-widget d-flex align-items-center justify-content-between p-4 bg-white shadow-sm border-0 rounded-4">
+                    <div class="d-flex align-items-center gap-4">
+                        <div class="fs-1 text-info">📡</div>
+                        <div>
+                            <div class="info-label mb-0 text-muted">Países Conectados</div>
+                            <div class="fs-4 fw-bold text-dark" id="total-countries">0</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="js/config.js"></script>
+    <script src="js/database.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/layout.js"></script>
+
+    <script>
+        let weatherChartInstance = null;
+        let cropsChartInstance = null;
+
+        async function updateDashboardData(selectedCountryId, allUsers, countries, allCrops) {
+            let filteredUsers = allUsers;
+            let filteredCrops = allCrops;
+            const cropsChartTitle = document.getElementById('crops-chart-title');
+            
+            if (selectedCountryId !== 'global') {
+                filteredUsers = allUsers.filter(u => String(u.country_id) === String(selectedCountryId));
+                const userIds = filteredUsers.map(u => u.id);
+                filteredCrops = allCrops.filter(c => userIds.includes(c.user_id));
+                const selectedCountryName = countries.find(c => String(c.id) === String(selectedCountryId))?.name || '';
+                cropsChartTitle.innerText = `Producción Agrícola en ${selectedCountryName}`;
+            } else {
+                cropsChartTitle.innerText = "Producción Agrícola Mundial";
+            }
+            
+            let totalCropsCounter = filteredCrops.length;
+            
+            // Distribución real para crops
+            let cropDistribution = {};
+            for (let c of filteredCrops) {
+                let name = c.name ? c.name.trim() : 'Otros';
+                name = name.split(' ')[0];
+                cropDistribution[name] = (cropDistribution[name] || 0) + 1;
+            }
+            if(Object.keys(cropDistribution).length === 0) {
+                 cropDistribution = { 'Sin Datos': 1 };
+            } else {
+                 let sorted = Object.entries(cropDistribution).sort((a,b) => b[1]-a[1]);
+                 if(sorted.length > 5) {
+                     let top4 = sorted.slice(0,4);
+                     let others = sorted.slice(4).reduce((acc, val) => acc + val[1], 0);
+                     top4.push(['Otros', others]);
+                     cropDistribution = Object.fromEntries(top4);
+                 }
+            }
+            
+            // Contar usuarios por país
+            let countryCountMap = {};
+            for(let u of filteredUsers) {
+                if (u.country_id) {
+                    const c = countries.find(co => String(co.id) === String(u.country_id));
+                    const name = c ? c.name : 'Desconocido';
+                    countryCountMap[name] = (countryCountMap[name] || 0) + 1;
+                }
+            }
+            if(Object.keys(countryCountMap).length === 0) {
+                 countryCountMap = { 'Sin Datos': 1 };
+            }
+
+            document.getElementById('total-users').innerText = filteredUsers.length;
+            document.getElementById('total-crops').innerText = totalCropsCounter;
+            document.getElementById('total-countries').innerText = selectedCountryId === 'global' ? Object.keys(countryCountMap).filter(k => k !== 'Sin Datos' && k !== 'Desconocido').length : 1;
+
+            // Actualizar Gráfica de Cultivos
+            if (cropsChartInstance) cropsChartInstance.destroy();
+            const ctx2 = document.getElementById('globalCropsChart').getContext('2d');
+            cropsChartInstance = new Chart(ctx2, {
+                type: 'doughnut',
+                data: {
+                    labels: Object.keys(cropDistribution),
+                    datasets: [{
+                        data: Object.values(cropDistribution),
+                        backgroundColor: ['#f59e0b', '#10b981', '#3b82f6', '#8b5cf6', '#64748b'],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { position: 'bottom' } },
+                    cutout: '50%'
+                }
+            });
+
+            // Lógica de Gráfica del Clima
+            const weatherOverlay = document.getElementById('weather-overlay');
+            const weatherTitle = document.getElementById('weather-chart-title');
+            
+            if (weatherChartInstance) weatherChartInstance.destroy();
+
+            if (selectedCountryId === 'global') {
+                weatherOverlay.style.display = 'flex';
+                weatherTitle.innerText = "Evolución del Clima (Selecciona un país)";
+                document.getElementById('weather-alert-container').innerHTML = '';
+            } else {
+                weatherOverlay.style.display = 'none';
+                
+                // Buscar coordenadas aproximadas del país (usaremos capital o centro si tenemos datos, sino usaremos lat/lon del primer usuario)
+                let lat = 13.6929, lon = -89.2182; // Default El Salvador
+                
+                // Si encontramos un cultivo de ese país con coordenadas, lo usamos para la muestra climática
+                const cropWithCoords = filteredCrops.find(c => c.latitude && c.longitude);
+                if (cropWithCoords) {
+                    lat = cropWithCoords.latitude;
+                    lon = cropWithCoords.longitude;
+                }
+
+                weatherTitle.innerText = "Pronóstico Semanal (Temp. Max / Min)";
+                
+                try {
+                    const response = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=temperature_2m_max,temperature_2m_min&timezone=auto`);
+                    const data = await response.json();
+                    
+                    if (data && data.daily) {
+                        const dates = data.daily.time.map(t => {
+                            const d = new Date(t + 'T12:00:00Z');
+                            let str = d.toLocaleDateString('es-ES', {weekday: 'long', day: 'numeric', month: 'short'});
+                            return str.charAt(0).toUpperCase() + str.slice(1);
+                        });
+                        const maxTemps = data.daily.temperature_2m_max;
+                        const minTemps = data.daily.temperature_2m_min;
+
+                        // AI Alert Logic
+                        let alertHtml = '';
+                        const avgMax = maxTemps.reduce((a, b) => a + b, 0) / maxTemps.length;
+                        if (avgMax >= 33) {
+                            alertHtml = '<div class="alert alert-danger p-2 mb-0 mt-2 small fw-bold text-start"><i class="bi bi-exclamation-triangle-fill"></i> Alerta Roja: Sequía y estrés hídrico extremo por altas temperaturas sostenidas.</div>';
+                        } else if (avgMax >= 29) {
+                            alertHtml = '<div class="alert alert-warning p-2 mb-0 mt-2 small fw-bold text-start"><i class="bi bi-exclamation-triangle"></i> Riesgo Moderado: Temperaturas elevadas. Asegurar riego constante.</div>';
+                        } else {
+                            alertHtml = '<div class="alert alert-success p-2 mb-0 mt-2 small fw-bold text-start"><i class="bi bi-check-circle-fill"></i> Clima Favorable: Condiciones óptimas para el desarrollo de cultivos.</div>';
+                        }
+                        document.getElementById('weather-alert-container').innerHTML = alertHtml;
+
+                        const ctx1 = document.getElementById('countryWeatherChart').getContext('2d');
+                        weatherChartInstance = new Chart(ctx1, {
+                            type: 'line',
+                            data: {
+                                labels: dates,
+                                datasets: [
+                                    {
+                                        label: 'Temp. Máxima (°C)',
+                                        data: maxTemps,
+                                        borderColor: '#ef4444',
+                                        backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                                        borderWidth: 3,
+                                        tension: 0.4,
+                                        fill: true
+                                    },
+                                    {
+                                        label: 'Temp. Mínima (°C)',
+                                        data: minTemps,
+                                        borderColor: '#3b82f6',
+                                        backgroundColor: 'transparent',
+                                        borderWidth: 3,
+                                        tension: 0.4,
+                                        borderDash: [5, 5]
+                                    }
+                                ]
+                            },
+                            options: {
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                plugins: { legend: { position: 'bottom' } },
+                                scales: { y: { beginAtZero: false } }
+                            }
+                        });
+                    }
+                } catch(e) {
+                    weatherOverlay.style.display = 'flex';
+                    weatherOverlay.innerHTML = '<p class="text-danger">Error al cargar datos climáticos.</p>';
+                }
+            }
+        }
+
+        async function initGlobalPerformance() {
+            if (window.initLayout) await window.initLayout('global_performance');
+            await AuthObj.requireAuth();
+
+            const user = await AuthObj.getCurrentUser();
+            if (user.role !== 'global_owner') {
+                window.location.href = 'dashboard.html';
+                return;
+            }
+
+            const allUsers = await window.DB.getAllUsers(user);
+            const countries = await window.DB.getCountries();
+            const allCrops = await window.DB.getAllCrops(user);
+
+            // Populate selector
+            const selector = document.getElementById('country-selector');
+            
+            countries.forEach(c => {
+                const opt = document.createElement('option');
+                opt.value = c.id;
+                opt.innerText = `📍 ${c.name}`;
+                selector.appendChild(opt);
+            });
+
+            selector.addEventListener('change', (e) => {
+                updateDashboardData(e.target.value, allUsers, countries, allCrops);
+            });
+
+            // Initial load
+            updateDashboardData('global', allUsers, countries, allCrops);
+        }
+
+        document.addEventListener('DOMContentLoaded', initGlobalPerformance);
+    </script>
+</body>
+</html>

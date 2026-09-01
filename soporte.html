@@ -304,9 +304,9 @@
                 <i class="bi bi-ticket-detailed-fill"></i>
                 <span>1. Gestión de Fichas & Videollamadas</span>
             </button>
-            <button class="main-tab-btn" onclick="switchMainTab('manual')" id="main-tab-btn-manual">
+            <button class="main-tab-btn" onclick="window.open('manual_usuario.html', '_blank')" id="main-tab-btn-manual">
                 <i class="bi bi-book-half" style="color: #ffd700;"></i>
-                <span>2. Manual de Usuario Oficial</span>
+                <span>2. Manual de Usuario Oficial <i class="bi bi-box-arrow-up-right ms-1" style="font-size: 0.8rem;"></i></span>
             </button>
         </div>
 
@@ -359,6 +359,8 @@
                             </div>
                         </div>
                     </div>
+
+
 
                     <div id="ticket-form-wrapper">
                         <h4 class="fw-bold mb-4 text-dark"><i
@@ -513,15 +515,7 @@
             </div>
         </div>
 
-        <!-- PESTAÑA PRINCIPAL 2: MANUAL DE USUARIO OFICIAL -->
-        <div id="main-pane-manual" class="main-pane">
 
-
-            <!-- Embed interactivo del manual -->
-            <div class="support-card p-0 overflow-hidden" style="height: 850px; border: 2px solid var(--border-color);">
-                <iframe src="manual_usuario.html" style="width: 100%; height: 100%; border: none;"></iframe>
-            </div>
-        </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
@@ -593,12 +587,18 @@
             if (currentUser.role === 'global_owner') {
                 const btnCreate = document.getElementById('sub-tab-btn-create');
                 const btnRoom = document.getElementById('sub-tab-btn-room');
+                const formWrapper = document.getElementById('ticket-form-wrapper');
+                const creatorNotice = document.getElementById('creator-notice-box');
+                
                 if (btnCreate) btnCreate.style.display = 'none';
                 if (btnRoom) btnRoom.style.display = 'none';
 
                 // Cambiar automáticamente a la pestaña de historial/registro oficial
                 setTimeout(() => switchSubTab('history'), 50);
-            }
+                
+                if (creatorNotice) creatorNotice.style.display = 'block';
+                if (formWrapper) formWrapper.style.display = 'none';
+            } 
         }
 
         function switchMainTab(tabId) {
@@ -724,6 +724,16 @@
 
                 if (!reports || reports.length === 0) {
                     empty.style.display = 'block';
+                    
+                    // Hide "Crear Primera Ficha" button for global owner
+                    const emptyBtn = empty.querySelector('button');
+                    if (emptyBtn) {
+                        if (currentUser && currentUser.role === 'global_owner') {
+                            emptyBtn.style.display = 'none';
+                        } else {
+                            emptyBtn.style.display = 'inline-block';
+                        }
+                    }
                 } else {
                     tbody.innerHTML = '';
                     const isAdminOrOwner = currentUser && (currentUser.role === 'global_owner' || currentUser.role === 'ministry_admin' || currentUser.is_superuser);
@@ -732,7 +742,7 @@
                         const dateStr = r.created_at ? new Date(r.created_at).toLocaleDateString() + ' ' + new Date(r.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Reciente';
 
                         let statusHtml = '<span class="badge-status badge-status-open">Abierta</span>';
-                        if (r.status === 'in_progress') statusHtml = '<span class="badge-status badge-status-in_progress">En Proceso</span>';
+                        if (r.status === 'assigned' || r.status === 'in_progress') statusHtml = '<span class="badge-status badge-status-in_progress">Asignada</span>';
                         if (r.status === 'resolved') statusHtml = '<span class="badge-status badge-status-resolved">Resuelta</span>';
                         if (r.status === 'closed') statusHtml = '<span class="badge-status badge-status-closed">Cerrada</span>';
                         if (r.is_critical || r.status === 'critical') {
@@ -758,10 +768,16 @@
                         }
 
                         if (isAdminView && r.status !== 'resolved' && r.status !== 'closed' && String(r.assigned_to) === String(currentUser.id)) {
-                            if (currentUser.role === 'org_admin' || currentUser.role === 'ministry_admin') {
+                            if (currentUser.role === 'org_admin') {
                                 adminButtons += `
-                                    <button onclick="escalateTicket('${r.id}')" class="btn-action-sm btn-action-escalate" title="Escalar incidencia al siguiente nivel">
-                                        <i class="bi bi-arrow-up-right-circle-fill"></i> Escalar
+                                    <button onclick="escalateTicket('${r.id}')" class="btn-action-sm btn-action-escalate" title="Escalar incidencia al Ministerio">
+                                        <i class="bi bi-arrow-up-right-circle-fill"></i> Escalar a Ministerio
+                                    </button>
+                                `;
+                            } else if (currentUser.role === 'ministry_admin') {
+                                adminButtons += `
+                                    <button onclick="escalateTicket('${r.id}')" class="btn-action-sm btn-action-escalate" title="Referir a Creadores (Dueños Globales)">
+                                        <i class="bi bi-arrow-up-right-circle-fill"></i> Referir a Creadores
                                     </button>
                                 `;
                             }
@@ -912,12 +928,16 @@
 
             if (formValues && formValues.notes) {
                 try {
-                    await window.DB.updateVideocallReport(reportId, {
-                        status: formValues.status,
-                        resolution_notes: formValues.notes,
-                        attended_by_name: currentUser ? (currentUser.full_name || currentUser.email) : 'Administrador',
-                        updated_at: new Date().toISOString()
-                    });
+                    if (formValues.status === 'resolved') {
+                        await window.DB.resolveVideocallReport(reportId, currentUser || { id: 'guest' }, formValues.notes);
+                    } else {
+                        await window.DB.updateVideocallReport(reportId, {
+                            status: formValues.status,
+                            resolution_notes: formValues.notes,
+                            attended_by_name: currentUser ? (currentUser.full_name || currentUser.email) : 'Administrador',
+                            updated_at: new Date().toISOString()
+                        });
+                    }
                     Swal.fire('¡Registrado!', 'La conclusión de la ficha ha sido guardada.', 'success');
                     loadReports();
                 } catch (e) {

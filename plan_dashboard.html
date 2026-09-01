@@ -193,7 +193,16 @@
                 console.log("Base de datos país:", country.name, "Plan:", country.plan);
             }
 
-            const plan = country ? (country.plan || 'none') : 'none';
+            const user = await AuthObj.getCurrentUser();
+            const userPlan = (user && user.plan && user.plan !== 'none') ? user.plan : null;
+            const countryPlan = country ? (country.plan || 'none') : 'none';
+            const plan = userPlan || countryPlan;
+            
+            if (userPlan) {
+                document.getElementById('current-region-label').innerHTML = `<span class="badge bg-warning text-dark"><i class="bi bi-person-badge-fill me-1"></i> Plan Individual Activo (Sobrescribe Región)</span>`;
+            } else {
+                document.getElementById('current-region-label').innerText = `Visualizando: ${country ? country.name : 'Región Global'}`;
+            }
             
             // Current counts
             const allUsers = await window.DB.getAllUsers({ role: 'global_owner' }); 
@@ -220,12 +229,7 @@
             updateCharts(regionalUsers, fLimit, countryOrgs, oLimit, plan);
             updateUI(regionalUsers, fLimit, countryOrgs, oLimit, plan);
             
-            // Update label if not in global mode or just to confirm
-            if (user.role === 'ministry_admin') {
-                document.getElementById('current-region-label').innerText = `Jurisdicción: ${country ? country.name : 'Desconocida'}`;
-            } else {
-                document.getElementById('current-region-label').innerText = `Visualizando: ${country ? country.name : 'Región Global'}`;
-            }
+            // Update label is handled above now
         }
 
         function updateUI(fCount, fLimit, oCount, oLimit, plan) {

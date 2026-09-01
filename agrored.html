@@ -385,6 +385,9 @@
                     </div>
                 </div>
 
+                <!-- Global News Banner -->
+                <div id="global-news-container"></div>
+
                 <!-- Feed Wall -->
                 <div id="feed-wall">
                     <div class="text-center p-5 text-muted">
@@ -563,6 +566,11 @@
 
             allUsersCache = await window.DB.getAllUsers();
 
+            // Fetch Real News if needed
+            if (window.DB.fetchAndGenerateGlobalNews) {
+                await window.DB.fetchAndGenerateGlobalNews();
+            }
+
             // Set my avatar
             const myAvatar = document.getElementById('my-avatar');
             if (currentUser.avatar_url) {
@@ -571,7 +579,7 @@
                 myAvatar.textContent = (currentUser.full_name || currentUser.email).charAt(0).toUpperCase();
             }
 
-            loadFeed();
+            loadGlobalNews();
             loadFeed();
             // loadGroups(); eliminado para corregir error
             loadFriends();
@@ -581,6 +589,39 @@
             setInterval(loadFeed, 10000);
             setInterval(loadFriends, 15000);
             setInterval(loadDynamicWidgets, 30000);
+            setInterval(loadGlobalNews, 60000);
+        }
+
+        async function loadGlobalNews() {
+            if (!window.DB.getGlobalNews) return;
+            const news = await window.DB.getGlobalNews();
+            const container = document.getElementById('global-news-container');
+            if (!news || news.length === 0) {
+                container.innerHTML = '';
+                return;
+            }
+
+            let html = '';
+            news.forEach(n => {
+                const isCritical = n.severity === 'critical';
+                const borderColor = isCritical ? 'border-danger' : 'border-info';
+                const icon = isCritical ? '<i class="bi bi-exclamation-triangle-fill text-danger me-2 animate__animated animate__flash animate__infinite"></i>' : '<i class="bi bi-globe-americas text-info me-2"></i>';
+                const shadow = isCritical ? 'box-shadow: 0 0 15px rgba(220,53,69,0.3);' : '';
+                const timeAgo = new Date(n.created_at).toLocaleDateString([], { month: 'short', day: 'numeric', hour: '2-digit', minute:'2-digit'});
+                
+                html += `
+                    <div class="post-card border-2 ${borderColor} mb-4" style="background: var(--card-bg); ${shadow}">
+                        <div class="d-flex align-items-center mb-2">
+                            <span class="badge ${isCritical ? 'bg-danger' : 'bg-info text-dark'} text-uppercase me-2" style="font-size: 0.7rem;">Noticia Ambiental Global</span>
+                            <small class="text-muted">${timeAgo} • ${escapeHTML(n.source)}</small>
+                        </div>
+                        <h5 class="fw-bold text-main mt-2 mb-2">${icon}${escapeHTML(n.title)}</h5>
+                        <p class="text-muted" style="font-size: 0.95rem;">${escapeHTML(n.content)}</p>
+                        ${n.image_url ? `<img src="${n.image_url}" style="width: 100%; max-height: 300px; object-fit: cover; border-radius: 12px;" class="mt-2" alt="News Image">` : ''}
+                    </div>
+                `;
+            });
+            container.innerHTML = html;
         }
 
         function escapeHTML(str) {

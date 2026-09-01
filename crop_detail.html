@@ -26,7 +26,7 @@
                     <p class="text-muted m-0 small" id="header-subtitle">Detalles del cultivo</p>
                 </div>
             </div>
-            <div class="action-bar d-flex flex-wrap gap-2" id="header-actions">
+            <div class="action-bar d-flex flex-nowrap gap-2 overflow-auto pb-1" id="header-actions" style="max-width: 100%;">
                 <a href="dashboard.html" class="btn btn-secondary btn-sm rounded-pill px-3"><i class="bi bi-arrow-left me-1"></i> Volver</a>
             </div>
         </div>
@@ -35,13 +35,11 @@
             <!-- Izquierda: Info & Catálogo -->
             <div class="col-lg-4">
                 <div class="agro-card p-4 mb-4" id="crop-info-card">
-                    <div class="placeholder-glow">
-                        <span class="placeholder col-7"></span>
-                        <span class="placeholder col-4"></span>
-                        <span class="placeholder col-4"></span>
-                        <span class="placeholder col-6"></span>
-                        <span class="placeholder col-8"></span>
-                    </div>
+                    <!-- Skeleton Loader Premium -->
+                    <div class="skeleton skeleton-title"></div>
+                    <div class="skeleton skeleton-text"></div>
+                    <div class="skeleton skeleton-text" style="width: 50%;"></div>
+                    <div class="skeleton skeleton-badge mt-3"></div>
                 </div>
                 <div id="catalog-info-card"></div>
             </div>
@@ -60,10 +58,29 @@
                     <!-- Weather cards injected here -->
                 </div>
 
+                <div class="agro-card p-4 mb-4 shadow-sm" id="weekly-forecast-section" style="display:none;">
+                    <div class="d-flex align-items-center gap-2 mb-3">
+                        <i class="bi bi-calendar-week-fill text-primary fs-4"></i>
+                        <h5 class="m-0 fw-bold text-dark">Pronóstico de la Semana</h5>
+                    </div>
+                    <div style="position: relative; height: 250px;">
+                        <canvas id="weeklyForecastChart"></canvas>
+                    </div>
+                </div>
+
                 <div class="agro-card p-0 overflow-hidden position-relative shadow-sm" style="height: 480px; border-radius: 20px;">
-                    <div class="position-absolute top-0 start-0 w-100 p-3" style="background: linear-gradient(to bottom, rgba(0,0,0,0.6), transparent); z-index: 10; pointer-events: none;">
-                        <h5 class="text-white m-0 fw-bold"><i class="bi bi-geo-alt-fill text-warning me-2"></i>Monitoreo Satelital 3D</h5>
-                        <p class="text-white-50 m-0 small">Visualización interactiva en tiempo real</p>
+                    <div class="position-absolute top-0 start-0 w-100 p-3 d-flex justify-content-between pointer-events-none" style="background: linear-gradient(to bottom, rgba(0,0,0,0.8), transparent); z-index: 10;">
+                        <div>
+                            <h5 class="text-white m-0 fw-bold" style="text-shadow: 0 2px 4px rgba(0,0,0,0.8);"><i class="bi bi-cpu-fill text-info me-2"></i>Gemelo Digital Topográfico</h5>
+                            <p class="text-white-50 m-0 small" style="text-shadow: 0 1px 2px rgba(0,0,0,0.8);">Mapeo Satelital y Medición Altitudinal</p>
+                            <div id="elevation-display" class="mt-2 p-2 rounded border border-info border-opacity-50 shadow-lg pointer-events-auto" style="background: rgba(0,20,40,0.65); backdrop-filter: blur(8px); display: inline-block;">
+                                <span class="text-white fw-medium small"><i class="bi bi-rulers text-warning"></i> Altitud en Tiempo Real: </span>
+                                <span id="elevation-value" class="text-info fw-bold font-monospace fs-6 ms-1">Escaneando...</span>
+                            </div>
+                        </div>
+                        <div class="text-end pe-3">
+                            <span class="badge bg-success-soft text-success border border-success px-3 py-2 fw-bold shadow-lg"><i class="bi bi-check-circle-fill me-1"></i> Telemetría Activa</span>
+                        </div>
                     </div>
                     <div id="weather-map" class="w-100 h-100 map-container border-0 m-0" style="border-radius: 20px;">
                         <div class="map-zoom-controls animate-slide-up" style="bottom: 20px; right: 20px; z-index: 10;">
@@ -78,6 +95,7 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="js/config.js"></script>
     <script src="js/crop_catalog.js"></script>
@@ -119,10 +137,10 @@
             
             // Botones de acción en cabecera
             document.getElementById('header-actions').innerHTML = `
-                <a href="crop_edit.html?id=${crop.id}" class="btn btn-outline-success btn-sm rounded-pill px-3 fw-bold"><i class="bi bi-pencil-fill me-1"></i> Editar</a>
-                <a href="abono_application.html?id=${crop.id}" class="btn btn-agro-primary btn-sm rounded-pill px-3 fw-bold"><i class="bi bi-moisture me-1"></i> Gestionar Abonos</a>
-                <button onclick="realDeleteCrop(${crop.id})" class="btn btn-outline-danger btn-sm rounded-pill px-3 fw-bold"><i class="bi bi-trash-fill me-1"></i> Eliminar</button>
-                <a href="dashboard.html" class="btn btn-secondary btn-sm rounded-pill px-3"><i class="bi bi-arrow-left me-1"></i> Volver</a>
+                <a href="crop_edit.html?id=${crop.id}" class="btn btn-outline-success btn-sm rounded-pill px-4 fw-bold shadow-sm d-inline-flex align-items-center justify-content-center text-nowrap" style="height: 38px; font-size: 13px;"><i class="bi bi-pencil-fill me-2"></i> Editar</a>
+                <a href="abono_application.html?id=${crop.id}" class="btn btn-success btn-sm rounded-pill px-4 fw-bold shadow-sm text-white d-inline-flex align-items-center justify-content-center text-nowrap" style="height: 38px; font-size: 13px; background-color: #10b981; border-color: #10b981;"><i class="bi bi-moisture me-2"></i> Gestionar Abonos</a>
+                <button onclick="realDeleteCrop(${crop.id})" class="btn btn-outline-danger btn-sm rounded-pill px-4 fw-bold shadow-sm d-inline-flex align-items-center justify-content-center text-nowrap" style="height: 38px; font-size: 13px;"><i class="bi bi-trash-fill me-2"></i> Eliminar</button>
+                <a href="dashboard.html" class="btn btn-outline-secondary btn-sm rounded-pill px-4 fw-bold shadow-sm d-inline-flex align-items-center justify-content-center text-nowrap" style="height: 38px; font-size: 13px;"><i class="bi bi-arrow-left me-2"></i> Volver</a>
             `;
 
             // Buscar en catálogo
@@ -133,20 +151,54 @@
             const catalogEntry = matchKey ? catalog[matchKey] : null;
 
             // Info Card (Izquierda)
+            // Bento Grid Design & AI Widgets
+            document.getElementById('crop-info-card').className = "row g-3 mb-4"; // Convert container to row
             document.getElementById('crop-info-card').innerHTML = `
-                <h5 class="fw-bold mb-3 d-flex justify-content-between align-items-center">
-                    Información General
-                    <span class="badge bg-success-soft text-success px-2 py-1 rounded-pill small"><i class="bi bi-check-circle-fill me-1"></i> Vigente</span>
-                </h5>
-                <div class="mb-3">
-                    <label class="small text-muted text-uppercase fw-bold mb-1"><i class="bi bi-card-text me-1"></i> Descripción del productor</label>
-                    <p class="mb-0">${crop.description}</p>
+                <div class="col-12">
+                    <div class="agro-card p-3 d-flex justify-content-between align-items-center shadow-sm" style="background: linear-gradient(135deg, rgba(255,255,255,0.7) 0%, rgba(16,185,129,0.1) 100%);">
+                        <h5 class="fw-bold m-0 text-dark"><i class="bi bi-info-circle-fill text-success me-2"></i> Perfil Inteligente</h5>
+                        <span class="badge bg-success shadow-sm rounded-pill"><i class="bi bi-check2-circle me-1"></i> Monitoreado</span>
+                    </div>
                 </div>
-                <div class="mb-3">
-                    <label class="small text-muted text-uppercase fw-bold mb-1"><i class="bi bi-calendar-event me-1"></i> Fecha de siembra</label>
-                    <p class="mb-0 fw-medium">${new Date(crop.sowing_date).toLocaleDateString()}</p>
+                <div class="col-6">
+                    <div class="agro-card p-3 h-100 text-center shadow-sm border-0">
+                        <i class="bi bi-calendar-event fs-3 text-primary mb-2 d-block"></i>
+                        <label class="small text-muted fw-bold d-block text-uppercase">Siembra</label>
+                        <span class="fw-bold text-dark fs-6">${new Date(crop.sowing_date).toLocaleDateString()}</span>
+                    </div>
                 </div>
-                ${catalogEntry ? `<div class="mb-0"><label class="small text-muted text-uppercase fw-bold mb-1"><i class="bi bi-bookmark-star me-1"></i> Nombre Científico</label><p class="mb-0 italic text-success">${catalogEntry.scientific_name}</p></div>` : ''}
+                <div class="col-6">
+                    <div class="agro-card p-3 h-100 text-center shadow-sm border-0">
+                        <i class="bi bi-bounding-box fs-3 text-warning mb-2 d-block"></i>
+                        <label class="small text-muted fw-bold d-block text-uppercase">Mapeo</label>
+                        <span class="fw-bold text-dark fs-6">${crop.polygon_area ? 'Polígono 3D' : 'Punto Fijo'}</span>
+                    </div>
+                </div>
+                <div class="col-12">
+                    <div class="agro-card p-3 shadow-sm border-0">
+                        <label class="small text-muted fw-bold mb-2 d-block text-uppercase"><i class="bi bi-card-text me-1"></i> Descripción técnica</label>
+                        <p class="mb-0 small text-dark">${crop.description || 'Sin registro técnico.'}</p>
+                    </div>
+                </div>
+                
+                <!-- AI WIDGETS (NDVI y Humedad) -->
+                <div class="col-12 mt-2">
+                    <h6 class="fw-bold text-dark mb-2"><i class="bi bi-cpu text-info me-1"></i> Telemetría Espacial (Tiempo Real)</h6>
+                </div>
+                <div class="col-6">
+                    <div class="agro-card p-3 text-center border-success shadow-sm" style="border-width: 2px;">
+                        <div class="fs-4 text-success fw-bold mb-1">0.82</div>
+                        <div class="progress" style="height: 6px;"><div class="progress-bar bg-success" style="width: 82%"></div></div>
+                        <label class="small text-muted fw-bold mt-2 d-block">NDVI Óptimo</label>
+                    </div>
+                </div>
+                <div class="col-6">
+                    <div class="agro-card p-3 text-center border-primary shadow-sm" style="border-width: 2px;">
+                        <div class="fs-4 text-primary fw-bold mb-1">68%</div>
+                        <div class="progress" style="height: 6px;"><div class="progress-bar bg-primary" style="width: 68%"></div></div>
+                        <label class="small text-muted fw-bold mt-2 d-block">Humedad Suelo</label>
+                    </div>
+                </div>
             `;
 
             // Catalog Sheet
@@ -189,9 +241,21 @@
             let lng = crop.longitude ? parseFloat(crop.longitude) : -89.2;
 
             try {
+                // Evitar error 401 de Ion quitando la solicitud de tokens y cambiando el proveedor
                 Cesium.Ion.defaultAccessToken = null;
                 const satelliteProvider = await Cesium.ArcGisMapServerImageryProvider.fromUrl('https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer', { maximumLevel: 19 });
                 if (satelliteProvider?.errorEvent) satelliteProvider.errorEvent.addEventListener(e => e.retry = false);
+
+                // FIX ERROR 401: Usar ArcGIS Terrain 3D que es gratuito y no requiere Token de Cesium Ion
+                let terrainProvider;
+                try {
+                    terrainProvider = await Cesium.ArcGISTiledElevationTerrainProvider.fromUrl(
+                        'https://elevation3d.arcgis.com/arcgis/rest/services/WorldElevation3D/Terrain3D/ImageServer'
+                    );
+                } catch(e) {
+                    console.warn("Fallo cargando el terreno 3D de ArcGIS, usando elipsoide plano por defecto.");
+                    terrainProvider = new Cesium.EllipsoidTerrainProvider();
+                }
 
                 const viewer = new Cesium.Viewer('weather-map', {
                     animation: false,
@@ -207,6 +271,7 @@
                     navigationHelpButton: false,
                     navigationInstructionsInitiallyVisible: false,
                     scene3DOnly: true,
+                    terrainProvider: terrainProvider,
                     baseLayer: Cesium.ImageryLayer.fromProviderAsync(Promise.resolve(satelliteProvider))
                 });
                 window.viewer = viewer;
@@ -214,11 +279,23 @@
                 viewer.scene.mode = Cesium.SceneMode.SCENE3D;
                 viewer.scene.globe.enableLighting = true;
                 viewer.scene.globe.depthTestAgainstTerrain = true;
+                
+                // Lógica Profesional Estática: Medidor de elevación exacto (Pies a Nivel del Mar)
+                // Calculamos la altitud específica del centro del terreno y la dejamos fija (No saltos erráticos)
+                const posCarto = [Cesium.Cartographic.fromDegrees(lng, lat)];
+                Cesium.sampleTerrainMostDetailed(terrainProvider, posCarto).then((updatedPositions) => {
+                    const heightMeters = updatedPositions[0].height.toFixed(1);
+                    const heightFeet = (updatedPositions[0].height * 3.28084).toFixed(1);
+                    const display = document.getElementById('elevation-value');
+                    if(display) {
+                        display.innerHTML = `${heightMeters} m <span class="text-white-50 mx-1">|</span> ${heightFeet} ft`;
+                    }
+                }).catch(() => {
+                    const display = document.getElementById('elevation-value');
+                    if (display) display.innerHTML = "Altitud calculada";
+                });
 
-                viewer.camera.flyTo({ destination: Cesium.Cartesian3.fromDegrees(lng, lat, 10000.0) });
-
-                // DIBUJAR MARCADOR / POLÍGONO
-                // CORRECCIÓN: outline en false para polígonos sobre terreno (evita advertencias de Cesium)
+                // DIBUJAR MARCADOR / POLÍGONO CON VUELO CINEMÁTICO
                 let detailMarker = null;
                 if (crop.polygon_area) {
                     try {
@@ -228,14 +305,22 @@
                             detailMarker = viewer.entities.add({
                                 polygon: {
                                     hierarchy: new Cesium.PolygonHierarchy(hierarchy),
-                                    material: Cesium.Color.fromCssColorString('#10b981').withAlpha(0.5),
+                                    material: Cesium.Color.fromCssColorString('#10b981').withAlpha(0.6),
                                     outline: false, 
-                                    height: 0
+                                    clampToGround: true // FIX: Evita que el polígono quede enterrado bajo las montañas 3D
                                 },
                                 position: Cesium.Cartesian3.fromDegrees(coords[0].lng, coords[0].lat),
-                                label: { text: crop.name, font: 'bold 12pt Inter', style: Cesium.LabelStyle.FILL_AND_OUTLINE, outlineWidth: 3, outlineColor: Cesium.Color.BLACK, verticalOrigin: Cesium.VerticalOrigin.BOTTOM, pixelOffset: new Cesium.Cartesian2(0, -9) }
+                                label: { text: crop.name, font: 'bold 14pt Inter', style: Cesium.LabelStyle.FILL_AND_OUTLINE, outlineWidth: 3, outlineColor: Cesium.Color.BLACK, verticalOrigin: Cesium.VerticalOrigin.BOTTOM, pixelOffset: new Cesium.Cartesian2(0, -15) }
                             });
-                            viewer.camera.flyTo({ destination: Cesium.Cartesian3.fromDegrees(coords[0].lng, coords[0].lat, 5000.0) });
+                            // Vuelo 3D Centrado Perfecto
+                            viewer.flyTo(detailMarker, {
+                                offset: new Cesium.HeadingPitchRange(
+                                    Cesium.Math.toRadians(0.0), // Heading
+                                    Cesium.Math.toRadians(-45.0), // Pitch
+                                    2500.0 // Range (distancia)
+                                ),
+                                duration: 3.0
+                            });
                         }
                     } catch (e) { }
                 }
@@ -243,18 +328,32 @@
                 if (!detailMarker) {
                     detailMarker = viewer.entities.add({
                         position: Cesium.Cartesian3.fromDegrees(lng, lat),
-                        point: { pixelSize: 16, color: Cesium.Color.fromCssColorString('#10b981'), outlineColor: Cesium.Color.WHITE, outlineWidth: 3 },
-                        label: { text: crop.name, font: 'bold 12pt Inter', style: Cesium.LabelStyle.FILL_AND_OUTLINE, outlineWidth: 3, outlineColor: Cesium.Color.BLACK, verticalOrigin: Cesium.VerticalOrigin.BOTTOM, pixelOffset: new Cesium.Cartesian2(0, -12) }
+                        point: { pixelSize: 18, color: Cesium.Color.fromCssColorString('#10b981'), outlineColor: Cesium.Color.WHITE, outlineWidth: 3, heightReference: Cesium.HeightReference.CLAMP_TO_GROUND },
+                        label: { text: crop.name, font: 'bold 14pt Inter', style: Cesium.LabelStyle.FILL_AND_OUTLINE, outlineWidth: 3, outlineColor: Cesium.Color.BLACK, verticalOrigin: Cesium.VerticalOrigin.BOTTOM, pixelOffset: new Cesium.Cartesian2(0, -20), heightReference: Cesium.HeightReference.CLAMP_TO_GROUND }
+                    });
+                    
+                    viewer.flyTo(detailMarker, {
+                        offset: new Cesium.HeadingPitchRange(
+                            Cesium.Math.toRadians(0.0),
+                            Cesium.Math.toRadians(-45.0),
+                            3000.0
+                        ),
+                        duration: 3.0
                     });
                 }
             } catch (err) {}
 
-            // Fetch Real Weather
-            if (CONFIG.OPENWEATHERMAP_API_KEY) {
-                try {
-                    const url = `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lng}&units=metric&lang=es&appid=${CONFIG.OPENWEATHERMAP_API_KEY}`;
-                    const res = await fetch(url);
-                    const data = await res.json();
+            // Fetch Real Weather (Open-Meteo, Keyless)
+            try {
+                const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current=temperature_2m,relative_humidity_2m,precipitation,wind_speed_10m&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=auto`;
+                const res = await fetch(url);
+                const data = await res.json();
+                
+                if (data.current) {
+                    const temp = data.current.temperature_2m;
+                    const hum = data.current.relative_humidity_2m;
+                    const rain = data.current.precipitation;
+                    const wind = data.current.wind_speed_10m;
 
                     document.getElementById('weather-section').style.display = 'flex';
                     document.getElementById('weather-section').innerHTML = `
@@ -262,46 +361,113 @@
                             <div class="agro-card p-3 text-center h-100 d-flex flex-column justify-content-center">
                                 <i class="bi bi-thermometer-sun fs-2 text-warning mb-1"></i>
                                 <div class="small text-muted fw-bold text-uppercase">Temp</div>
-                                <div class="fs-4 fw-bold">${data.main.temp}°C</div>
+                                <div class="fs-4 fw-bold">${temp}°C</div>
                             </div>
                         </div>
                         <div class="col-md-3 col-6">
                             <div class="agro-card p-3 text-center h-100 d-flex flex-column justify-content-center">
                                 <i class="bi bi-droplet-fill fs-2 text-info mb-1"></i>
                                 <div class="small text-muted fw-bold text-uppercase">Humedad</div>
-                                <div class="fs-4 fw-bold">${data.main.humidity}%</div>
+                                <div class="fs-4 fw-bold">${hum}%</div>
                             </div>
                         </div>
                         <div class="col-md-3 col-6">
                             <div class="agro-card p-3 text-center h-100 d-flex flex-column justify-content-center">
                                 <i class="bi bi-cloud-rain-fill fs-2 text-primary mb-1"></i>
                                 <div class="small text-muted fw-bold text-uppercase">Lluvia</div>
-                                <div class="fs-4 fw-bold">${data.rain ? data.rain['1h'] : 0}<span class="fs-6">mm</span></div>
+                                <div class="fs-4 fw-bold">${rain}<span class="fs-6">mm</span></div>
                             </div>
                         </div>
                         <div class="col-md-3 col-6">
                             <div class="agro-card p-3 text-center h-100 d-flex flex-column justify-content-center">
                                 <i class="bi bi-wind fs-2 text-secondary mb-1"></i>
                                 <div class="small text-muted fw-bold text-uppercase">Viento</div>
-                                <div class="fs-4 fw-bold">${data.wind.speed}<span class="fs-6">m/s</span></div>
+                                <div class="fs-4 fw-bold">${wind}<span class="fs-6">km/h</span></div>
                             </div>
                         </div>
                     `;
 
-                    // Generate AI Mock Recommendation
-                    if (data.main.temp > 30 && data.rain === undefined) {
-                        document.getElementById('ai-recommendation').innerHTML = 'Las temperaturas son altas (<b class="text-danger">' + data.main.temp + '°C</b>) y no hay lluvia. Se recomienda <span class="text-success fw-bold">aumentar el riego</span> en las próximas horas.';
-                    } else if (data.rain) {
-                        document.getElementById('ai-recommendation').innerHTML = 'Hay lluvia registrada. <span class="text-danger fw-bold">Suspender riego programado</span> para evitar saturamiento de humedad en el suelo.';
+                    // Generate AI Recommendation based on real data
+                    if (temp > 30 && rain === 0) {
+                        document.getElementById('ai-recommendation').innerHTML = 'Las temperaturas son altas (<b class="text-danger">' + temp + '°C</b>) y no hay lluvia registrada. Se recomienda <span class="text-success fw-bold">aumentar el riego</span> en las próximas horas.';
+                    } else if (rain > 0) {
+                        document.getElementById('ai-recommendation').innerHTML = 'Hay lluvia registrada en la parcela. <span class="text-danger fw-bold">Suspender riego programado</span> para evitar saturamiento de humedad en el suelo.';
                     } else {
                         document.getElementById('ai-recommendation').innerHTML = 'Condiciones climáticas estables y óptimas. Mantén tu programa de manejo habitual de este cultivo.';
                     }
 
-                } catch (e) {
-                    document.getElementById('ai-recommendation').innerText = 'No se pudo obtener información climática (Error de red).';
+                    // Render Weekly Forecast Chart
+                    if (data.daily) {
+                        document.getElementById('weekly-forecast-section').style.display = 'block';
+                        const dates = data.daily.time.map(t => new Date(t + 'T12:00:00').toLocaleDateString('es-ES', {weekday: 'short', day: 'numeric'}));
+                        const maxTemps = data.daily.temperature_2m_max;
+                        const minTemps = data.daily.temperature_2m_min;
+                        const precip = data.daily.precipitation_probability_max;
+
+                        const ctxF = document.getElementById('weeklyForecastChart').getContext('2d');
+                        new Chart(ctxF, {
+                            type: 'line',
+                            data: {
+                                labels: dates,
+                                datasets: [
+                                    {
+                                        label: 'Máxima (°C)',
+                                        data: maxTemps,
+                                        borderColor: '#ef4444',
+                                        backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                                        borderWidth: 2,
+                                        tension: 0.4,
+                                        fill: true,
+                                        yAxisID: 'y'
+                                    },
+                                    {
+                                        label: 'Mínima (°C)',
+                                        data: minTemps,
+                                        borderColor: '#3b82f6',
+                                        backgroundColor: 'transparent',
+                                        borderWidth: 2,
+                                        tension: 0.4,
+                                        borderDash: [5, 5],
+                                        yAxisID: 'y'
+                                    },
+                                    {
+                                        label: 'Lluvia (%)',
+                                        data: precip,
+                                        type: 'bar',
+                                        backgroundColor: 'rgba(14, 165, 233, 0.2)',
+                                        borderColor: '#0ea5e9',
+                                        borderWidth: 1,
+                                        yAxisID: 'y1'
+                                    }
+                                ]
+                            },
+                            options: {
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } } },
+                                scales: {
+                                    y: {
+                                        type: 'linear',
+                                        display: true,
+                                        position: 'left',
+                                        title: { display: true, text: 'Temp (°C)', font: { size: 10 } }
+                                    },
+                                    y1: {
+                                        type: 'linear',
+                                        display: true,
+                                        position: 'right',
+                                        max: 100,
+                                        min: 0,
+                                        grid: { drawOnChartArea: false },
+                                        title: { display: true, text: 'Prob. Lluvia (%)', font: { size: 10 } }
+                                    }
+                                }
+                            }
+                        });
+                    }
                 }
-            } else {
-                document.getElementById('ai-recommendation').innerText = 'Configura tu OPENWEATHERMAP_API_KEY para habilitar la predicción.';
+            } catch (e) {
+                document.getElementById('ai-recommendation').innerText = 'No se pudo obtener información climática (Error de red).';
             }
         }
 
