@@ -8,6 +8,7 @@ let temporalCountryId = null;
 let temporalOTP = '';
 let otpExpiry = 0;
 let isRecoveryFlow = false;
+let pendingRegistrationData = null;
 
 // Initialize EmailJS (kept as fallback for password recovery)
 if (typeof emailjs !== 'undefined') {
@@ -278,8 +279,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             try {
                 const fullPhone = formatInternationalPhone(phoneCode, phoneNumber);
-
-                await window.DB.createUser({
+                
+                pendingRegistrationData = {
                     email: email,
                     password: password,
                     country_id: countryId,
@@ -288,21 +289,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                     phone_country_code: phoneCode,
                     whatsapp: fullPhone,
                     whatsapp_opt_in: whatsappOptIn
-                });
+                };
 
-                if (window.showSuccessModal) {
-                    window.showSuccessModal(
-                        '¡Cuenta Creada Exitosamente!',
-                        whatsappOptIn
-                            ? 'Tu cuenta ha sido creada. Recibirás recordatorios de tus cultivos por WhatsApp.'
-                            : 'Tu cuenta ha sido creada. Ahora puedes iniciar sesión.'
-                    );
-                }
+                isRecoveryFlow = false;
+                await sendRealOTP(email, btn, originalHTML, 'registro');
 
-                switchView('login-view');
-                document.getElementById('login-email').value = email;
             } catch (err) {
-                showError('register-view', err.message || 'Error al crear la cuenta. Intenta de nuevo.');
+                showError('register-view', err.message || 'Error al procesar el registro. Intenta de nuevo.');
             } finally {
                 btn.innerHTML = originalHTML;
                 btn.disabled = false;
@@ -342,9 +335,44 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
 
             if (code === temporalOTP) {
-                switchView('create-password-view');
-                document.querySelector('#create-password-view h1').innerText = 'Restablecer Contraseña';
-                document.querySelector('#create-password-view .auth-info').innerText = 'Ingresa tu nueva contraseña para recuperar el acceso.';
+                if (isRecoveryFlow) {
+                    switchView('create-password-view');
+                    document.querySelector('#create-password-view h1').innerText = 'Restablecer Contraseña';
+                    document.querySelector('#create-password-view .auth-info').innerText = 'Ingresa tu nueva contraseña para recuperar el acceso.';
+                } else {
+                    // Registration Flow
+                    if (!pendingRegistrationData) {
+                        showError('otp-view', 'Faltan datos de registro. Vuelve a intentarlo.');
+                        return;
+                    }
+                    
+                    const btn = e.target.querySelector('button');
+                    const ogText = btn.innerText;
+                    btn.innerText = 'Creando cuenta...';
+                    btn.disabled = true;
+
+                    window.DB.createUser(pendingRegistrationData)
+                        .then(() => {
+                            if (window.showSuccessModal) {
+                                window.showSuccessModal(
+                                    '¡Cuenta Creada Exitosamente!',
+                                    pendingRegistrationData.whatsapp_opt_in
+                                        ? 'Tu cuenta ha sido creada. Recibirás recordatorios de tus cultivos por WhatsApp.'
+                                        : 'Tu cuenta ha sido verificada y creada. Ahora puedes iniciar sesión.'
+                                );
+                            }
+                            switchView('login-view');
+                            document.getElementById('login-email').value = pendingRegistrationData.email;
+                            pendingRegistrationData = null;
+                        })
+                        .catch(err => {
+                            showError('otp-view', err.message || 'Error al crear la cuenta en base de datos.');
+                        })
+                        .finally(() => {
+                            btn.innerText = ogText;
+                            btn.disabled = false;
+                        });
+                }
             } else {
                 showError('otp-view', 'El código es incorrecto. Verifica e intenta de nuevo.');
             }

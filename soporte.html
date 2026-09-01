@@ -790,6 +790,13 @@
 
                         const historyBtn = `<button onclick="viewTicketHistory('${r.id}')" class="btn-action-sm btn-action-gmail" title="Ver Historial"><i class="bi bi-clock-history"></i> Historial</button>`;
                         const manageBtn = (isAdminView && String(r.assigned_to) === String(currentUser.id)) || (String(r.caller_id) === String(currentUser.id)) ? `<button onclick="openResolveModal('${r.id}', '${(r.subject || '').replace(/'/g, "")}')" class="btn-action-sm btn-action-resolve" title="Registrar Conclusión">📝 Gestionar</button>` : '';
+                        
+                        let reopenBtn = '';
+                        if (r.status === 'resolved' || r.status === 'closed') {
+                            if (String(r.caller_id) === String(currentUser.id) || isAdminView) {
+                                reopenBtn = `<button onclick="reopenTicket('${r.id}')" class="btn-action-sm btn-action-escalate" title="Reabrir caso para nueva gestión"><i class="bi bi-arrow-counterclockwise"></i> Reabrir</button>`;
+                            }
+                        }
 
                         const tr = document.createElement('tr');
                         tr.innerHTML = `
@@ -807,9 +814,10 @@
                             </td>
                             <td class="text-end">
                                 <div class="d-flex justify-content-end flex-wrap gap-1">
-                                    ${manageBtn}
+                                    ${r.status !== 'resolved' && r.status !== 'closed' ? manageBtn : ''}
                                     ${videoCallBtn}
                                     ${adminButtons}
+                                    ${reopenBtn}
                                     ${historyBtn}
                                 </div>
                             </td>
@@ -1030,14 +1038,30 @@
                     return;
                 }
 
+                // Fetch users to resolve names
+                let allUsers = [];
+                try {
+                    allUsers = await window.DB.getAllUsers();
+                } catch(e) {}
+
+                const getUserName = (id) => {
+                    if (!id) return 'Sistema';
+                    const u = allUsers.find(x => String(x.id) === String(id));
+                    return u ? (u.full_name || u.email || `ID: ${id}`) : `ID: ${id}`;
+                };
+
                 let historyHtml = '<ul class="list-group text-start shadow-sm mb-3">';
                 report.history.forEach(h => {
                     const d = new Date(h.timestamp);
                     const dateStr = d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                    
+                    const byName = getUserName(h.by);
                     let actionText = '';
-                    if (h.action === 'created') actionText = `📝 <strong>Creado</strong> por usuario ID: ${h.by}`;
-                    if (h.action === 'assigned') actionText = `👤 <strong>Asignado</strong> a Admin ID: ${h.by}`;
-                    if (h.action === 'escalated') actionText = `⚡ <strong>Escalado</strong> a nivel ${h.to} por Admin ID: ${h.by}`;
+                    if (h.action === 'created') actionText = `📝 <strong>Creado (Solicitado)</strong> por ${byName}`;
+                    if (h.action === 'assigned') actionText = `👤 <strong>Asignado</strong> a ${byName}`;
+                    if (h.action === 'escalated') actionText = `⚡ <strong>Escalado</strong> a nivel ${h.to} por ${byName}`;
+                    if (h.action === 'resolved') actionText = `✅ <strong>Resuelto</strong> por ${byName}`;
+                    if (h.action === 'reopened') actionText = `🔄 <strong>Reabierto (Nueva Gestión)</strong> por ${byName}`;
 
                     historyHtml += `
                         <li class="list-group-item bg-light border-0 mb-1 rounded">
@@ -1072,10 +1096,32 @@
                 if (res.isConfirmed) {
                     try {
                         await window.DB.escalateVideocallReport(reportId, currentUser);
-                        Swal.fire('¡Escalado!', 'El caso ha sido escalado exitosamente.', 'success');
+                        Swal.fire('¡Ficha Escalada!', 'El caso ha sido pasado al nivel superior.', 'success');
                         loadReports();
                     } catch (e) {
-                        Swal.fire('Error', 'No se pudo escalar: ' + e.message, 'error');
+                        Swal.fire('Error', 'No se pudo escalar el caso: ' + e.message, 'error');
+                    }
+                }
+            });
+        };
+
+        window.reopenTicket = async function (reportId) {
+            Swal.fire({
+                title: '¿Reabrir esta ficha?',
+                text: 'El estado volverá a Abierto y requerirá nueva atención.',
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonText: '🔄 Sí, Reabrir',
+                cancelButtonText: 'Cancelar',
+                confirmButtonColor: '#3b82f6'
+            }).then(async (res) => {
+                if (res.isConfirmed) {
+                    try {
+                        await window.DB.reopenVideocallReport(reportId, currentUser);
+                        Swal.fire('Reabierta', 'La ficha ha sido reabierta con éxito.', 'success');
+                        loadReports();
+                    } catch (e) {
+                        Swal.fire('Error', 'No se pudo reabrir el caso: ' + e.message, 'error');
                     }
                 }
             });

@@ -1411,6 +1411,14 @@ class Database {
         });
     }
 
+    async reopenVideocallReport(reportId, user) {
+        return await this.updateVideocallReport(reportId, {
+            status: 'open',
+            resolution_notes: '',
+            _append_history: { action: 'reopened', by: user.id, timestamp: new Date().toISOString() }
+        });
+    }
+
     async updateVideocallReport(reportId, updateData) {
         const historyAction = updateData._append_history;
         delete updateData._append_history;
