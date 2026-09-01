@@ -1596,9 +1596,17 @@ class Database {
 
     /** Reprogram an existing activity without creating a duplicate. */
     async rescheduleCropActivity(activityId, scheduledDate, scheduledTime) {
+        const normalizedTime = String(scheduledTime || '').slice(0, 5);
+        const target = new Date(`${scheduledDate}T${normalizedTime}:00`);
+        if (!scheduledDate || !normalizedTime || Number.isNaN(target.getTime())) {
+            throw new Error('Fecha u hora de reprogramación inválida.');
+        }
+        if (target <= new Date()) {
+            throw new Error('La actividad solo puede reprogramarse para una fecha y hora futuras.');
+        }
         return this.updateCropActivityStatus(activityId, 'reprogramado', {
             scheduled_date: scheduledDate,
-            scheduled_time: scheduledTime,
+            scheduled_time: normalizedTime,
             rescheduled_to: scheduledDate,
             response_received: 'reprogramado',
             whatsapp_reminder_sent: false,
