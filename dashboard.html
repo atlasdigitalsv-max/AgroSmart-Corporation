@@ -676,9 +676,18 @@
                 const timeStr = act.scheduled_time
                     ? new Date(`2000-01-01T${String(act.scheduled_time).slice(0, 8)}`).toLocaleTimeString('es-SV', { hour: 'numeric', minute: '2-digit', hour12: true })
                     : '—';
+                const scheduledDateTime = act.scheduled_date
+                    ? new Date(`${act.scheduled_date}T${String(act.scheduled_time || '23:59').slice(0, 5)}:00`)
+                    : null;
+                const isOverdue = ['pendiente', 'reprogramado'].includes(act.status)
+                    && scheduledDateTime
+                    && !Number.isNaN(scheduledDateTime.getTime())
+                    && scheduledDateTime < new Date();
 
                 let statusBadge = '';
-                if (act.status === 'pendiente') {
+                if (isOverdue) {
+                    statusBadge = '<span class="badge bg-danger"><i class="bi bi-exclamation-triangle me-1"></i>Vencida · todavía pendiente</span>';
+                } else if (act.status === 'pendiente') {
                     statusBadge = '<span class="badge bg-warning text-dark"><i class="bi bi-clock me-1"></i>Pendiente</span>';
                 } else if (act.status === 'realizado') {
                     const doneDate = act.completed_at ? new Date(act.completed_at).toLocaleDateString() : dateStr;
@@ -760,11 +769,17 @@
             if (!activity) return;
             const currentDate = activity.scheduled_date || '';
             const currentTime = String(activity.scheduled_time || '08:00').slice(0, 5);
+            const now = new Date();
+            const localToday = [
+                now.getFullYear(),
+                String(now.getMonth() + 1).padStart(2, '0'),
+                String(now.getDate()).padStart(2, '0')
+            ].join('-');
             const result = await Swal.fire({
                 title: 'Reprogramar actividad',
                 html: `
                     <label class="form-label d-block text-start">Nueva fecha</label>
-                    <input id="activity-new-date" type="date" class="swal2-input m-0 mb-3 w-100" value="${currentDate}">
+                    <input id="activity-new-date" type="date" min="${localToday}" class="swal2-input m-0 mb-3 w-100" value="${currentDate}">
                     <label class="form-label d-block text-start">Nueva hora</label>
                     <input id="activity-new-time" type="time" class="swal2-input m-0 w-100" value="${currentTime}">
                 `,
@@ -777,6 +792,15 @@
                     const scheduled_time = document.getElementById('activity-new-time').value;
                     if (!scheduled_date || !scheduled_time) {
                         Swal.showValidationMessage('Selecciona la fecha y la hora.');
+                        return false;
+                    }
+                    const selectedDateTime = new Date(`${scheduled_date}T${scheduled_time}:00`);
+                    if (Number.isNaN(selectedDateTime.getTime())) {
+                        Swal.showValidationMessage('La fecha y hora no son válidas.');
+                        return false;
+                    }
+                    if (selectedDateTime <= new Date()) {
+                        Swal.showValidationMessage('Selecciona una fecha y hora futuras.');
                         return false;
                     }
                     return { scheduled_date, scheduled_time };
