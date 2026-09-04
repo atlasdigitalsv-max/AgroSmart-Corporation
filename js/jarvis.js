@@ -408,6 +408,11 @@ class JarvisCore {
         this.updateWidgetState('processing'); // Cambiar a estado Pensando en silencio total
         try { this.recognition.stop(); } catch(e){} 
         
+        if (typeof navigator !== 'undefined' && !navigator.onLine) {
+            this.speak("Me encuentro en modo de contingencia por falta de internet. No puedo acceder a mi núcleo de inteligencia central, pero el registro local y el calendario lunar están funcionales.");
+            return;
+        }
+
         await this.processWithLLM(commandText);
     }
 

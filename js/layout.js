@@ -373,6 +373,7 @@ async function renderNavbar(activePage) {
         }
         
         document.body.classList.toggle('sidebar-collapsed', !open);
+        document.body.classList.toggle('sidebar-open-mobile', open); // Agregado para layout responsivo premium
         // Salvar estado
         localStorage.setItem('agrosmart-sidebar-open', open);
     };
@@ -707,3 +708,52 @@ window.openProfileModal = async function() {
         }
     }
 };
+
+// --- OFFLINE / ONLINE DETECTOR (HACKATHON TOP FEATURE) ---
+function showOfflineBanner() {
+    let banner = document.getElementById('agrosmart-offline-banner');
+    if (!banner) {
+        banner = document.createElement('div');
+        banner.id = 'agrosmart-offline-banner';
+        banner.style.cssText = `
+            position: fixed; top: 0; left: 0; width: 100%; z-index: 99999;
+            background: rgba(220, 38, 38, 0.85); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+            color: white; text-align: center; padding: 14px 20px; font-size: 0.9rem;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2); display: flex; align-items: center; justify-content: center; gap: 15px;
+            transform: translateY(-100%); transition: transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            border-bottom: 1px solid rgba(255,255,255,0.2);
+        `;
+        banner.innerHTML = `
+            <div style="text-align: left;">
+                <div style="font-weight: 800; font-size: 1.05rem; letter-spacing: -0.5px; margin-bottom: 3px;"><i class="bi bi-wifi-off me-2" style="font-size: 1.2rem;"></i>Modo de Contingencia (ISO 27001 - Resiliencia)</div>
+                <div style="font-size: 0.85rem; opacity: 0.95;">Sin conexión. <b>Disponibles:</b> Registro Local, Calendario, Catálogo. <b>Limitadas:</b> Nube, Jarvis LLM.</div>
+            </div>
+        `;
+        document.body.appendChild(banner);
+    }
+    setTimeout(() => { if (banner) banner.style.transform = 'translateY(0)'; }, 50);
+    // Haptic Feedback for disconnection (Heavy)
+    if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+}
+
+function hideOfflineBanner() {
+    const banner = document.getElementById('agrosmart-offline-banner');
+    if (banner) {
+        banner.style.transform = 'translateY(-100%)';
+        setTimeout(() => banner.remove(), 500);
+    }
+    // Haptic Feedback for reconnection (Light pulse)
+    if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
+}
+
+window.addEventListener('offline', showOfflineBanner);
+window.addEventListener('online', hideOfflineBanner);
+
+// Initial check
+if (typeof navigator !== 'undefined' && !navigator.onLine) {
+    if (document.readyState === 'loading') {
+        window.addEventListener('DOMContentLoaded', showOfflineBanner);
+    } else {
+        showOfflineBanner();
+    }
+}

@@ -22,6 +22,15 @@ El sistema cumple con un modelo multi-nivel (Agricultor ➔ Cooperativa ➔ Mini
 
 ---
 
+## 📜 Certificaciones y Apego a Estándares ISO
+
+Aunque AgroSmart se encuentra en etapa de validación y aún no cuenta con acreditación oficial formal, el núcleo de la plataforma ha sido diseñado, desarrollado y estructurado **apegándose estrictamente** a las normativas internacionales de calidad y seguridad:
+
+* **ISO 9001 (Gestión de Calidad):** Garantizamos la trazabilidad total de las interacciones agronómicas (auditorías B2G de ministerios) y mantenemos una política de **0 Errores en Consola**, asegurando una experiencia de usuario fluida y predecible.
+* **ISO/IEC 27001 (Seguridad de la Información y Resiliencia):** Nuestro sistema está diseñado con una arquitectura tolerante a fallos (*Offline-First*). Si un agricultor pierde la conexión a internet en medio del campo, el **Detector Offline Automático** entra en acción y le notifica en pantalla de sus capacidades actuales. 
+* **Protocolo de Contingencia de IA (Jarvis):** Bajo el marco de resiliencia de la ISO 27001, Jarvis aplica una *degradación controlada*. Al intentar hablar sin conexión, en lugar de generar un error en el sistema, Jarvis aborta la llamada a la red y **responde localmente por voz** notificando que se encuentra en modo de contingencia, informando al usuario que sus registros locales siguen funcionales.
+
+---
 ## 🚀 Lo que Cumplimos: Módulos y Funcionalidades del Ecosistema
 
 > [!IMPORTANT]

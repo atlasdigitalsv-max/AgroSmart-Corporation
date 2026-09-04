@@ -928,16 +928,19 @@ body.sidebar-collapsed .navbar-toggle {
 .sidebar-toggle-btn {
     display: none !important;
 }
-
-/* Sidebar transition stability */
-body {
-    padding-left: 260px;
-    transition: padding-left 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+/* Sidebar transition stability - Refactored for Perfect Responsive Push */
+body.page-body {
+    padding-left: 0 !important; /* Reset padding to prevent conflicts */
+    margin-left: 260px;
+    width: calc(100% - 260px);
+    transition: margin-left 0.4s cubic-bezier(0.16, 1, 0.3, 1), width 0.4s cubic-bezier(0.16, 1, 0.3, 1);
     min-width: 320px;
+    overflow-x: hidden;
 }
 
-body.sidebar-collapsed {
-    padding-left: 0;
+body.sidebar-collapsed.page-body {
+    margin-left: 0;
+    width: 100%;
 }
 
 @media (max-width: 991px) {
@@ -946,8 +949,17 @@ body.sidebar-collapsed {
         height: 100vh !important;
         padding: 18px 16px !important;
     }
-    body {
-        padding-left: 0 !important;
+    
+    body.page-body {
+        margin-left: 0;
+        width: 100%;
+    }
+    
+    /* When navbar is opened on mobile, push the content! */
+    body.sidebar-open-mobile.page-body {
+        margin-left: 260px;
+        width: calc(100% - 260px);
+        overflow-x: hidden;
     }
 }
 
@@ -2553,4 +2565,20 @@ body.sidebar-collapsed {
 @keyframes shimmer {
     0% { background-position: -800px 0; }
     100% { background-position: 800px 0; }
+}
+
+/* Staggered Animations for Premium Feel */
+.stagger-1 { animation: slideUpFade 0.5s ease-out 0.1s both; }
+.stagger-2 { animation: slideUpFade 0.5s ease-out 0.2s both; }
+.stagger-3 { animation: slideUpFade 0.5s ease-out 0.3s both; }
+.stagger-4 { animation: slideUpFade 0.5s ease-out 0.4s both; }
+.stagger-5 { animation: slideUpFade 0.5s ease-out 0.5s both; }
+
+/* Enhanced Glassmorphism v2 */
+.glass-panel-v2 {
+    background: rgba(255, 255, 255, 0.45);
+    backdrop-filter: blur(25px);
+    -webkit-backdrop-filter: blur(25px);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
 }
