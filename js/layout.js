@@ -106,13 +106,13 @@ const NAVBAR_TEMPLATE = `
         <a href="about.html" class="btn-secondary text-nowrap" data-page="about">
             <i class="bi bi-info-circle me-2"></i> Nosotros
         </a>
-        <a href="soporte.html" class="btn-secondary text-nowrap" data-page="soporte">
+        <a href="soporte.html" class="btn-secondary text-nowrap" data-page="soporte" style="display: none;">
             <i class="bi bi-headset me-2"></i> Soporte & Videollamadas
         </a>
         <a href="manual_usuario.html" class="btn-secondary text-nowrap" data-page="manual">
             <i class="bi bi-book-half me-2" style="color: #ffd700;"></i> Manual
         </a>
-        <a href="contact.html" class="btn-secondary text-nowrap" data-page="contact" style="display: none;">
+        <a href="contact.html" class="btn-secondary text-nowrap" data-page="contact">
             <i class="bi bi-envelope me-2"></i> Contacto
         </a>
         <div id="logout-nav-container" style="margin-top: auto;">
@@ -143,6 +143,22 @@ async function renderNavbar(activePage) {
     if (!user && !isPublicPage) {
         window.location.replace('index.html');
         return;
+    }
+
+    // Enforce Plan requirement globally (except for admins who need access to management pages regardless of plan)
+    if (user && !['global_owner', 'ministry_admin', 'org_admin'].includes(user.role)) {
+        const checkPlanGlobally = async () => {
+            const userPlan = user.plan && user.plan !== 'none' ? user.plan : null;
+            if (userPlan) return; // Has plan
+
+            // If no plan, check if they are on a protected page that REQUIRES a plan
+            const planExemptPages = ['dashboard.html', 'services.html', 'index.html', 'about.html', 'contact.html', 'manual_usuario.html', 'privacy.html', 'terms.html', 'admin_panel.html', 'plan_dashboard.html', 'admin_user_detail.html'];
+            if (!planExemptPages.includes(fileName)) {
+                // If country has Esmeralda, they will get it auto in dashboard, but if they go directly to crop_create, block them and send to dashboard
+                window.location.replace('dashboard.html');
+            }
+        };
+        await checkPlanGlobally();
     }
 
     // Dynamic UI adjustments for current page based on auth state
@@ -180,7 +196,9 @@ async function renderNavbar(activePage) {
         }
     }
 
-    const isAdmin = user && (user.is_superuser || ['global_owner', 'ministry_admin', 'org_admin'].includes(user.role));
+    let r = user && user.role ? String(user.role).toLowerCase() : null;
+    if (r === 'creator' || r === 'creador') r = 'global_owner';
+    const isAdmin = user && (user.is_superuser || ['global_owner', 'ministry_admin', 'org_admin'].includes(r));
     const isSidebarOpen = localStorage.getItem('agrosmart-sidebar-open') !== 'false';
 
     const sidebar = container.querySelector('.navbar');
@@ -197,7 +215,7 @@ async function renderNavbar(activePage) {
     }
 
     // Navigation items that require login
-    const protectedItems = container.querySelectorAll('[data-page="catalog"], [data-page="crop_create"], [data-page="moon"], [data-page="contact"]');
+    const protectedItems = container.querySelectorAll('[data-page="catalog"], [data-page="crop_create"], [data-page="moon"], [data-page="soporte"]');
     const agroredLink = container.querySelector('[data-page="agrored"]');
     const planLink = container.querySelector('#nav-plan-link');
     const aiLink = container.querySelector('#nav-ai-link') || container.querySelector('[data-page="ai_chat"]');
@@ -220,13 +238,15 @@ async function renderNavbar(activePage) {
             const countries = await window.DB.getCountries();
             const country = countries.find(c => String(c.id) === String(user.country_id));
             const plan = (country ? (country.plan || 'none') : 'none').toUpperCase();
+            const userPlanText = (user.plan && user.plan !== 'none') ? user.plan.toUpperCase() : plan;
             
-            navPlanBadge.textContent = plan === 'NONE' ? 'BÁSICO' : plan;
+            navPlanBadge.textContent = userPlanText === 'NONE' ? 'SIN PLAN' : userPlanText;
             navPlanBadge.style.display = 'inline-block';
             
-            if (plan === 'ESMERALDA') navPlanBadge.className = 'badge rounded-pill ms-2 border-0 py-1 px-2 bg-success text-white fw-bold';
-            else if (plan === 'DIAMANTE') navPlanBadge.className = 'badge rounded-pill ms-2 border-0 py-1 px-2 bg-primary text-white fw-bold';
-            else if (plan === 'BRONCE' || plan === 'BRONZE') navPlanBadge.className = 'badge rounded-pill ms-2 border-0 py-1 px-2 bg-warning text-dark fw-bold';
+            if (userPlanText === 'ESMERALDA') navPlanBadge.className = 'badge rounded-pill ms-2 border-0 py-1 px-2 bg-success text-white fw-bold';
+            else if (userPlanText === 'DIAMANTE') navPlanBadge.className = 'badge rounded-pill ms-2 border-0 py-1 px-2 bg-primary text-white fw-bold';
+            else if (userPlanText === 'BRONCE' || userPlanText === 'BRONZE') navPlanBadge.className = 'badge rounded-pill ms-2 border-0 py-1 px-2 bg-warning text-dark fw-bold';
+            else if (userPlanText === 'NONE') navPlanBadge.className = 'badge rounded-pill ms-2 border-0 py-1 px-2 bg-danger text-white fw-bold';
             else navPlanBadge.className = 'badge rounded-pill ms-2 border-0 py-1 px-2 bg-secondary text-white fw-bold';
         } else {
             navPlanBadge.style.display = 'none';
@@ -335,9 +355,13 @@ async function renderNavbar(activePage) {
     if (user && sessionStorage.getItem('show_welcome_modal') === 'true') {
         sessionStorage.removeItem('show_welcome_modal');
         let roleName = 'Agricultor';
-        if (user.role === 'global_owner') roleName = 'Dueño Global';
-        else if (user.role === 'ministry_admin') roleName = 'Administrador Gubernamental';
-        else if (user.role === 'org_admin') roleName = 'Administrador de Cooperativa';
+        
+        let rawRole = user.role ? String(user.role).toLowerCase() : 'farmer';
+        const mappedRole = ['creator', 'creador', 'global_owner'].includes(rawRole) ? 'global_owner' : rawRole;
+        
+        if (mappedRole === 'global_owner') roleName = 'Dueño Global';
+        else if (mappedRole === 'ministry_admin') roleName = 'Administrador Gubernamental';
+        else if (mappedRole === 'org_admin') roleName = 'Administrador de Cooperativa';
         
         // Fetch country plan name
         const countries = await window.DB.getCountries();

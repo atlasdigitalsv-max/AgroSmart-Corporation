@@ -51,9 +51,9 @@
     <div id="navbar-container"></div>
 
     <div class="container mt-4 animate-slide-up">
-        <div class="d-flex justify-content-between align-items-center mb-5">
+        <div class="d-flex justify-content-between align-items-center mb-5" id="dashboard-header">
             <div>
-                <h1 class="dashboard-title m-0 text-start">Utilización del Plan</h1>
+                <h1 class="dashboard-title m-0 text-start" id="main-title">Utilización del Plan</h1>
                 <p class="text-muted mb-0" id="current-region-label">Cargando región...</p>
             </div>
             <div id="country-selector-container" class="d-none">
@@ -63,7 +63,15 @@
             </div>
         </div>
 
-        <div class="row g-4 mb-5">
+        <div id="global-owner-banner" class="d-none">
+            <div class="plan-card p-5 text-center border-0 bg-primary bg-gradient text-white shadow-lg mb-5" style="border-radius: 30px;">
+                <i class="bi bi-globe-americas display-1 mb-3"></i>
+                <h2 class="fw-bold display-5">Plan de Dueños Globales</h2>
+                <p class="lead opacity-75 mb-0">Tienes acceso ilimitado a todas las funciones y regiones del sistema AgroSmart. Los límites de planes no aplican para los Creadores.</p>
+            </div>
+        </div>
+
+        <div class="row g-4 mb-5" id="charts-container">
             <!-- Total Regional Users Usage -->
             <div class="col-lg-6">
                 <div class="plan-card p-4 h-100">
@@ -167,22 +175,35 @@
             const selectorContainer = document.getElementById('country-selector-container');
 
             if (user.role === 'global_owner') {
+                document.getElementById('global-owner-banner').classList.remove('d-none');
                 selectorContainer.classList.remove('d-none');
-                document.getElementById('current-region-label').innerText = 'Selecciona una región para ver estadísticas';
                 
-                countrySelector.innerHTML = countries.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
-                countrySelector.value = user.country_id || countries[0].id;
+                let optHtml = '<option value="">Selecciona un país para ver sus estadísticas...</option>';
+                countries.forEach(c => {
+                    optHtml += `<option value="${c.id}">${c.name}</option>`;
+                });
+                countrySelector.innerHTML = optHtml;
+
+                countrySelector.addEventListener('change', (e) => {
+                    if (e.target.value) {
+                        document.getElementById('charts-container').classList.remove('d-none');
+                        loadStats(e.target.value, user);
+                    } else {
+                        document.getElementById('charts-container').classList.add('d-none');
+                        document.getElementById('current-region-label').innerText = 'Selecciona una región';
+                    }
+                });
                 
-                countrySelector.addEventListener('change', () => loadStats(countrySelector.value));
-                loadStats(countrySelector.value);
+                document.getElementById('charts-container').classList.add('d-none');
+                document.getElementById('current-region-label').innerText = 'Selecciona una región para monitorear';
             } else {
                 const currentCountry = countries.find(c => String(c.id) === String(user.country_id));
                 document.getElementById('current-region-label').innerText = `Jurisdicción: ${currentCountry ? currentCountry.name : 'Tu País'}`;
-                loadStats(user.country_id);
+                loadStats(user.country_id, user);
             }
         }
 
-        async function loadStats(countryId) {
+        async function loadStats(countryId, user) {
             console.log("Cargando estadísticas para país ID:", countryId);
             const countries = await window.DB.getCountries();
             const country = countries.find(c => String(c.id) === String(countryId));
@@ -193,7 +214,6 @@
                 console.log("Base de datos país:", country.name, "Plan:", country.plan);
             }
 
-            const user = await AuthObj.getCurrentUser();
             const userPlan = (user && user.plan && user.plan !== 'none') ? user.plan : null;
             const countryPlan = country ? (country.plan || 'none') : 'none';
             const plan = userPlan || countryPlan;
@@ -204,8 +224,10 @@
                 document.getElementById('current-region-label').innerText = `Visualizando: ${country ? country.name : 'Región Global'}`;
             }
             
+            // Update label is handled above now
+            
             // Current counts
-            const allUsers = await window.DB.getAllUsers({ role: 'global_owner' }); 
+            const allUsers = await window.DB.getAllUsers(user); 
             console.log("Total usuarios recuperados:", allUsers.length);
 
             // Count everyone except global_owner in this country

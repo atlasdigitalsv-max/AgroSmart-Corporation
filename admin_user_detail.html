@@ -23,6 +23,10 @@
                     <div>
                         <div class="info-label">Dirección de correo</div>
                         <div class="fs-4 fw-bold text-main" id="user-email">...</div>
+                        <div class="mt-2 text-muted" style="font-size: 0.9rem;">
+                            <i class="bi bi-telephone"></i> <span id="user-phone">No registrado</span> &bull; 
+                            <i class="bi bi-geo-alt"></i> <span id="user-country-text">Desconocido</span>
+                        </div>
                         <div class="mt-2" id="user-tag-container"></div>
                     </div>
                 </div>
@@ -76,6 +80,16 @@
             document.getElementById('profile-avatar').innerText = viewUser.email[0].toUpperCase();
             document.getElementById('user-email').innerText = viewUser.email;
             document.getElementById('user-created').innerText = new Date(viewUser.date_joined).toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' });
+
+            if (viewUser.phone) {
+                document.getElementById('user-phone').innerText = viewUser.phone;
+            }
+
+            const countriesData = await window.DB.getCountries();
+            const userCountryData = countriesData.find(c => String(c.id) === String(viewUser.country_id));
+            if (userCountryData) {
+                document.getElementById('user-country-text').innerText = userCountryData.name;
+            }
 
             const tagContainer = document.getElementById('user-tag-container');
             let roleHtml = '';

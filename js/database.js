@@ -57,7 +57,8 @@ class Database {
                 chat_group_members: [],
                 posts: [],
                 post_comments: [],
-                friendships: []
+                friendships: [],
+                plan_requests: []
             };
             this.saveLocalDB(initialData);
         }
@@ -78,22 +79,131 @@ class Database {
         return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
     }
 
+    async createPlanRequest(reqObj) {
+        const baseReq = {
+            ...reqObj,
+            status: 'pending',
+            created_at: new Date().toISOString()
+        };
+
+        // Disabled Supabase sync to avoid 404 console errors since table is missing
+        /*
+        if (this.supabase) {
+            try {
+                const { data, error } = await this.supabase.from('plan_requests').insert([baseReq]).select().single();
+                if (error) {
+                    // console.warn("[Supabase] plan_requests insert error:", error);
+                } else {
+                    return data;
+                }
+            } catch(e) {
+                // console.warn("[Offline] Fallback to local DB for createPlanRequest");
+            }
+        }
+        */
+        
+        const db = this.getLocalDB();
+        if (!db.plan_requests) db.plan_requests = [];
+        const newReq = { id: Date.now(), ...baseReq };
+        db.plan_requests.push(newReq);
+        this.saveLocalDB(db);
+        return newReq;
+    }
+
+    async getPlanRequests(countryId = null) {
+        // Disabled Supabase sync to avoid 404 console errors since table is missing
+        /*
+        if (this.supabase) {
+            try {
+                let query = this.supabase.from('plan_requests').select('*, users(*)').order('created_at', { ascending: false });
+                if (countryId) {
+                    query = query.eq('country_id', countryId);
+                }
+                const { data, error } = await query;
+                if (!error && data) {
+                    // Try to attach users if Supabase missed them (e.g. relation issue)
+                    const db = this.getLocalDB();
+                    return data.map(r => {
+                        let u = r.users;
+                        if (!u || Array.isArray(u)) { // Sometimes Supabase returns array or null
+                            u = (db.users || []).find(usr => String(usr.id) === String(r.user_id)) || null;
+                        }
+                        return { ...r, users: u };
+                    });
+                }
+            } catch(e) {}
+        }
+        */
+        
+        const db = this.getLocalDB();
+        if (!db.plan_requests) return [];
+        let reqs = db.plan_requests;
+        if (countryId) {
+            reqs = reqs.filter(r => String(r.country_id) === String(countryId));
+        }
+        // attach user info using the robust getUserById method
+        const reqsWithUsers = await Promise.all(reqs.map(async r => {
+            const user = await this.getUserById(r.user_id);
+            return { ...r, users: user || null };
+        }));
+        
+        return reqsWithUsers.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    }
+
+    async updatePlanRequestStatus(id, status, adminId = null) {
+        // Disabled Supabase sync to avoid 404 console errors since table is missing
+        /*
+        if (this.supabase) {
+            try {
+                const { error } = await this.supabase.from('plan_requests').update({ status, resolved_by: adminId, resolved_at: new Date().toISOString() }).eq('id', id);
+                if (!error) return true;
+            } catch(e) {}
+        }
+        */
+        
+        const db = this.getLocalDB();
+        if (!db.plan_requests) return false;
+        db.plan_requests = db.plan_requests.map(r => r.id === id ? { ...r, status, resolved_by: adminId, resolved_at: new Date().toISOString() } : r);
+        this.saveLocalDB(db);
+        return true;
+    }
+
+    async deletePlanRequest(id) {
+        const db = this.getLocalDB();
+        if (!db.plan_requests) return false;
+        db.plan_requests = db.plan_requests.filter(r => String(r.id) !== String(id));
+        this.saveLocalDB(db);
+        return true;
+    }
+
     // --- Users ---
     async getUserByEmail(email) {
+        let u = null;
         if (this.supabase && navigator.onLine) {
             try {
                 const { data, error } = await this.supabase.from('users').select('*').eq('email', email).maybeSingle();
-                if (!error && data) return data;
+                if (!error && data) u = data;
                 if (error && error.code !== 'PGRST116') throw error; // Re-throw real errors to trigger fallback
             } catch(e) {
                 console.warn("[Offline/Error] Fallback to local DB for getUserByEmail", e);
             }
         }
-        return this.getLocalDB().users.find(u => u.email === email);
+        
+        if (!u) {
+            u = this.getLocalDB().users.find(u => u.email === email);
+        }
+
+        if (u) {
+            let r = String(u.role || '').toLowerCase();
+            if (r === 'creator' || r === 'creador') u.role = 'global_owner';
+        }
+        
+        return u;
     }
 
     async getUserById(id) {
         if (!id) return null;
+        let u = null;
         if (this.supabase && navigator.onLine) {
             try {
                 const { data, error } = await this.supabase.from('users').select('*').eq('id', id).maybeSingle();
@@ -101,26 +211,37 @@ class Database {
                     console.warn("[Supabase] Error en getUserById:", error.message);
                     throw error; 
                 }
-                if (data) return data;
+                if (data) u = data;
             } catch(e) {
                 // Silenced offline fallback log
             }
         }
         
-        const localUser = this.getLocalDB().users.find(u => String(u.id) === String(id));
-        if (localUser) return localUser;
+        if (!u) {
+            const localUser = this.getLocalDB().users.find(u => String(u.id) === String(id));
+            if (localUser) u = localUser;
+        }
+
+        if (u) {
+            let r = String(u.role || '').toLowerCase();
+            if (r === 'creator' || r === 'creador') u.role = 'global_owner';
+        }
         
-        return null;
+        return u;
     }
 
     async createUser(userObj) {
         const hashedPassword = await this.hashPassword(userObj.password);
+        
+        let rawRole = userObj.role || 'farmer';
+        if (rawRole === 'creator' || rawRole === 'creador') rawRole = 'global_owner';
+
         const baseUser = {
             ...userObj,
             password: hashedPassword,
             is_superuser: userObj.is_superuser || false,
             is_active: true,
-            role: userObj.role || 'farmer',
+            role: rawRole,
             country_id: userObj.country_id || null,
             org_id: userObj.org_id || null,
             date_joined: new Date().toISOString(),
@@ -258,20 +379,37 @@ class Database {
         this.saveLocalDB(db);
     }
 
-    async updateUserPlan(userId, plan) {
+    async updateUserPlan(userId, plan, durationMonths = 1) {
+        let plan_start = null;
+        let plan_end = null;
+        
+        if (plan !== 'gratis' && plan !== 'none') {
+            const start = new Date();
+            const end = new Date(start);
+            end.setMonth(start.getMonth() + durationMonths);
+            plan_start = start.toISOString();
+            plan_end = end.toISOString();
+        }
+
         if (this.supabase) {
             try {
-                const { error } = await this.supabase.from('users').update({ plan: plan }).eq('id', userId);
+                // Si la DB tiene las columnas, se actualizarán. Si falla, caerá en el catch local.
+                const { error } = await this.supabase.from('users').update({ 
+                    plan: plan,
+                    plan_start: plan_start,
+                    plan_end: plan_end
+                }).eq('id', userId);
+                
                 if (error) throw new Error(error.message);
                 return;
             } catch(e) {
                 if (!e.message?.includes('Failed to fetch')) throw e;
-                console.warn("[Offline] Fallback to local DB for updateUserPlan");
+                console.warn("[Offline/Columna Faltante] Fallback to local DB for updateUserPlan");
             }
         }
 
         const db = this.getLocalDB();
-        db.users = db.users.map(u => u.id === userId ? { ...u, plan: plan } : u);
+        db.users = db.users.map(u => u.id === userId ? { ...u, plan: plan, plan_start: plan_start, plan_end: plan_end } : u);
         this.saveLocalDB(db);
     }
 
@@ -450,13 +588,36 @@ class Database {
         ];
     }
 
-    async setCountryPlan(countryId, plan) {
-        if (this.supabase) {
-            const { error } = await this.supabase.from('countries').update({ plan }).eq('id', countryId);
-            if (error) throw error;
-            return true;
+    async setCountryPlan(countryId, plan, durationMonths = 1) {
+        let plan_start = null;
+        let plan_end = null;
+        
+        if (plan !== 'gratis' && plan !== 'none') {
+            const start = new Date();
+            const end = new Date(start);
+            end.setMonth(start.getMonth() + durationMonths);
+            plan_start = start.toISOString();
+            plan_end = end.toISOString();
         }
-        // Local fallback
+
+        if (this.supabase) {
+            try {
+                const { error } = await this.supabase.from('countries').update({ 
+                    plan: plan,
+                    plan_start: plan_start,
+                    plan_end: plan_end
+                }).eq('id', countryId);
+                
+                if (error) throw error;
+                return true;
+            } catch (e) {
+                console.warn("[Supabase] Error en setCountryPlan (¿columnas faltantes?):", e.message);
+            }
+        }
+        
+        const db = this.getLocalDB();
+        db.countries = (db.countries || []).map(c => c.id === countryId ? { ...c, plan, plan_start, plan_end } : c);
+        this.saveLocalDB(db);
         return true;
     }
 
@@ -1877,6 +2038,11 @@ window.AuthObj = {
 
                 console.log("¡Login exitoso!");
                 sessionStorage.setItem('current_user_id', user.id);
+                try {
+                    localStorage.setItem('agrosmart_user_cache', JSON.stringify(user));
+                } catch(err) {
+                    console.warn("No se pudo guardar la caché de usuario (¿Cuota excedida?)", err);
+                }
                 sessionStorage.setItem('show_welcome_modal', 'true');
                 return true;
             } else {
@@ -1906,6 +2072,9 @@ window.AuthObj = {
                 try {
                     const userObj = JSON.parse(cached);
                     if (String(userObj.id) === String(id)) {
+                        let r = String(userObj.role || '').toLowerCase();
+                        if (r === 'creator' || r === 'creador') userObj.role = 'global_owner';
+                        
                         // Update in background but return cache immediately
                         this.refreshUserInBackground(id);
                         return userObj;
@@ -1918,15 +2087,30 @@ window.AuthObj = {
     },
 
     refreshUser: async function(id) {
+        const getCachedUser = () => {
+            try {
+                const cached = localStorage.getItem('agrosmart_user_cache');
+                if (cached) {
+                    const parsed = JSON.parse(cached);
+                    if (String(parsed.id) === String(id)) return parsed;
+                }
+            } catch(e) {}
+            return { id: id, role: 'farmer', is_superuser: false, _isStub: true };
+        };
+
         try {
             const user = await window.DB.getUserById(id);
             if (!user) {
-                return { id: id, role: 'farmer', is_superuser: false, _isStub: true };
+                return getCachedUser();
             }
-            localStorage.setItem('agrosmart_user_cache', JSON.stringify(user));
+            try {
+                localStorage.setItem('agrosmart_user_cache', JSON.stringify(user));
+            } catch(err) {
+                console.warn("No se pudo guardar caché en refreshUser", err);
+            }
             return user;
         } catch (e) {
-            return { id: id, role: 'farmer', is_superuser: false, _isStub: true };
+            return getCachedUser();
         }
     },
 
@@ -1935,9 +2119,65 @@ window.AuthObj = {
         try {
             const user = await window.DB.getUserById(id);
             if (user) {
+                // Validación de expiración de licencia
+                if (user.plan && user.plan !== 'gratis' && user.plan !== 'none' && user.plan_end) {
+                    const now = new Date();
+                    const endDate = new Date(user.plan_end);
+                    const daysLeft = (endDate - now) / (1000 * 60 * 60 * 24);
+
+                    if (daysLeft < 0) {
+                        // Plan expirado, degradar a gratis
+                        console.warn("[Licencia] El plan ha expirado. Degradando cuenta.");
+                        await window.DB.updateUserPlan(id, 'gratis');
+                        user.plan = 'gratis';
+                        user.plan_end = null;
+                        
+                        Swal.fire('Licencia Expirada', 'Tu plan de pago ha expirado. Tu cuenta ahora es gratis.', 'info');
+                    } else if (daysLeft <= 7 && !sessionStorage.getItem('notified_expiration_' + id)) {
+                        // Plan por vencer (advertencia)
+                        console.warn("[Licencia] Plan próximo a vencer en", Math.ceil(daysLeft), "días.");
+                        sessionStorage.setItem('notified_expiration_' + id, 'true');
+                        
+                        // Enviar correo de advertencia usando EmailJS (si está configurado)
+                        const templateId = (window.CONFIG && window.CONFIG.EMAILJS_NOTIFICATION_TEMPLATE_ID) 
+                                           ? window.CONFIG.EMAILJS_NOTIFICATION_TEMPLATE_ID 
+                                           : (window.CONFIG ? window.CONFIG.EMAILJS_TEMPLATE_ID : null);
+                        
+                        if (window.CONFIG && templateId && typeof emailjs !== 'undefined') {
+                            emailjs.send(window.CONFIG.EMAILJS_SERVICE_ID, templateId, {
+                                email: user.email,
+                                to_email: user.email,
+                                from_name: "AgroSmart System",
+                                subject: "¡Atención! Tu licencia de AgroSmart está a punto de vencer",
+                                time: new Date().toLocaleTimeString(),
+                                passcode: "RENOVACIÓN", 
+                                message: `Tu plan ${user.plan.toUpperCase()} expira en ${Math.ceil(daysLeft)} días.`,
+                                html_message: `
+                                <div style="font-family: system-ui, sans-serif; padding: 20px; text-align: center;">
+                                    <h2>¡Tu licencia está por vencer!</h2>
+                                    <p>Tu plan actual (<strong>${user.plan.toUpperCase()}</strong>) expirará en <strong>${Math.ceil(daysLeft)} días</strong>.</p>
+                                    <p>Para seguir disfrutando de todas las herramientas avanzadas, por favor contacta a soporte o al administrador de tu cooperativa/región para gestionar tu renovación.</p>
+                                </div>`
+                            }).catch(e => console.warn("Email de expiración falló:", e));
+                        }
+
+                        // Alerta visual
+                        setTimeout(() => {
+                            Swal.fire({
+                                title: 'Licencia por Vencer',
+                                text: `Tu plan ${user.plan.toUpperCase()} expira en ${Math.ceil(daysLeft)} días. Contacta a tu administrador para renovar.`,
+                                icon: 'warning',
+                                confirmButtonText: 'Entendido'
+                            });
+                        }, 2000);
+                    }
+                }
+
                 localStorage.setItem('agrosmart_user_cache', JSON.stringify(user));
             }
-        } catch(e) {}
+        } catch(e) {
+            console.error("[Licencia] Error verificando expiración:", e);
+        }
     },
     requireAuth: async function() {
         const user = await this.getCurrentUser();
@@ -1949,7 +2189,9 @@ window.AuthObj = {
     },
     requireAdmin: async function() {
         const user = await this.getCurrentUser();
-        const isAdminRole = ['global_owner', 'ministry_admin', 'org_admin'].includes(user?.role);
+        let r = user && user.role ? String(user.role).toLowerCase() : null;
+        if (r === 'creator' || r === 'creador') r = 'global_owner';
+        const isAdminRole = ['global_owner', 'ministry_admin', 'org_admin'].includes(r);
         if (!user || (!user.is_superuser && !isAdminRole)) {
             window.location.href = 'dashboard.html';
             throw new Error("Admin required");

@@ -56,9 +56,71 @@
         <!-- Solutions Grid & Pricing -->
         <div id="pricing-section-container" style="display: none;" class="animate-slide-up">
             <div class="text-center mb-5">
-                <h2 class="fw-bold fs-1">¿Aún no tienes un plan?</h2>
-                <p class="text-muted lead">Potencia tu gestión agrícola con nuestras soluciones corporativas para países y cooperativas.</p>
+                <h2 class="fw-bold fs-1">Nuestros Planes y Licencias</h2>
+                <p class="text-muted lead">Elige la solución que mejor se adapte a tus necesidades. Pagos 100% seguros mediante transferencia bancaria.</p>
+                
+                <ul class="nav nav-pills justify-content-center mt-4 mb-4" id="plan-tabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active px-4 py-2 rounded-pill fw-bold" id="individual-tab" data-bs-toggle="pill" data-bs-target="#individual-plans" type="button" role="tab">Planes para Agricultores</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link px-4 py-2 rounded-pill fw-bold" id="government-tab" data-bs-toggle="pill" data-bs-target="#government-plans" type="button" role="tab">Licencias de Gobierno (País)</button>
+                    </li>
+                </ul>
             </div>
+
+            <div class="tab-content" id="plan-tab-content">
+                <!-- Planes Individuales -->
+                <div class="tab-pane fade show active" id="individual-plans" role="tabpanel">
+                    <div class="row g-4 mb-5 justify-content-center">
+                        
+                        <!-- Plan Pro -->
+                        <div class="col-lg-5 col-md-6">
+                            <div class="card border-0 shadow h-100 rounded-4 position-relative transition-all hover-shadow" style="border-top: 5px solid var(--primary-color) !important; transform: scale(1.03); z-index: 10;">
+                                <div class="position-absolute top-0 start-50 translate-middle badge rounded-pill bg-success px-3 py-2 shadow-sm text-uppercase" style="font-size: 10px; letter-spacing: 1px;">Recomendado</div>
+                                <div class="card-body p-4 text-center d-flex flex-column mt-2">
+                                    <div class="icon-box-v2 bg-success text-white shadow-sm mb-3 mx-auto" style="width: 60px; height: 60px; font-size: 26px;">
+                                        <i class="bi bi-star-fill"></i>
+                                    </div>
+                                    <h4 class="fw-bold text-success mb-1">Pro Individual</h4>
+                                    <div class="mb-4 text-success">
+                                        <span class="fs-1 fw-900">$15</span><span class="fw-bold opacity-75">/mes</span>
+                                    </div>
+                                    <ul class="list-unstyled text-start small mb-4 mt-2">
+                                        <li class="mb-2"><i class="bi bi-check-circle text-success me-2"></i>Cultivos Ilimitados</li>
+                                        <li class="mb-2"><i class="bi bi-check-circle text-success me-2"></i>Agro IA Básico</li>
+                                        <li class="mb-2"><i class="bi bi-check-circle text-success me-2"></i>Red Social (AgroRed)</li>
+                                    </ul>
+                                    <button class="btn btn-agro-primary w-100 py-3 rounded-pill fw-bold mt-auto shadow" onclick="initiateBankTransferPurchase('Pro Individual', 15, 'individual')">Comprar Ahora</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Plan Avanzado -->
+                        <div class="col-lg-5 col-md-6">
+                            <div class="card border-0 shadow-sm h-100 rounded-4 transition-all hover-shadow bg-dark text-white" style="border-top: 5px solid #20c997 !important;">
+                                <div class="card-body p-4 text-center d-flex flex-column">
+                                    <div class="icon-box-v2 bg-white text-dark shadow-sm mb-3 mx-auto" style="width: 50px; height: 50px; font-size: 20px;">
+                                        <i class="bi bi-lightning-charge-fill"></i>
+                                    </div>
+                                    <h4 class="fw-bold text-white mb-1">Avanzado Individual</h4>
+                                    <div class="mb-4 text-white">
+                                        <span class="fs-1 fw-900">$30</span><span class="text-white-50 fw-bold">/mes</span>
+                                    </div>
+                                    <ul class="list-unstyled text-start small mb-4 mt-2 text-white-50">
+                                        <li class="mb-2"><i class="bi bi-check-circle text-success me-2"></i>Todo del Plan Pro</li>
+                                        <li class="mb-2"><i class="bi bi-check-circle text-success me-2"></i>Soporte Prioritario</li>
+                                        <li class="mb-2"><i class="bi bi-check-circle text-success me-2"></i>Acceso Jarvis Completo</li>
+                                    </ul>
+                                    <button class="btn w-100 py-3 rounded-pill fw-bold mt-auto text-dark shadow-sm" onclick="initiateBankTransferPurchase('Avanzado Individual', 30, 'individual')" style="background: #20c997;">Comprar Ahora</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Planes Gubernamentales -->
+                <div class="tab-pane fade" id="government-plans" role="tabpanel">
 
             <!-- Precios (Tarjetas) -->
             <div class="row g-4 mb-5 justify-content-center">
@@ -74,7 +136,7 @@
                             <div class="mb-4">
                                 <span class="fs-1 fw-900 text-dark">$350</span><span class="text-muted fw-bold">/mes</span>
                             </div>
-                            <button class="btn btn-agro-outline w-100 py-3 rounded-pill fw-bold mt-auto" onclick="handleServiceClick('bronce')">Contactar Entidad</button>
+                            <button class="btn btn-agro-outline w-100 py-3 rounded-pill fw-bold mt-auto" onclick="initiateBankTransferPurchase('Bronce (Nacional)', 350, 'government')">Comprar Licencia (Transferencia)</button>
                         </div>
                     </div>
                 </div>
@@ -90,7 +152,7 @@
                             <div class="mb-4">
                                 <span class="fs-1 fw-900 text-dark">$750</span><span class="text-muted fw-bold">/mes</span>
                             </div>
-                            <button class="btn btn-secondary w-100 py-3 rounded-pill fw-bold mt-auto text-white shadow-sm" onclick="handleServiceClick('platinium')" style="background: #6c757d; border: none;">Contactar Entidad</button>
+                            <button class="btn btn-secondary w-100 py-3 rounded-pill fw-bold mt-auto text-white shadow-sm" onclick="initiateBankTransferPurchase('Platinium (Nacional)', 750, 'government')" style="background: #6c757d; border: none;">Comprar Licencia (Transferencia)</button>
                         </div>
                     </div>
                 </div>
@@ -107,7 +169,7 @@
                             <div class="mb-4 text-success">
                                 <span class="fs-1 fw-900">$1500</span><span class="fw-bold opacity-75">/mes</span>
                             </div>
-                            <button class="btn btn-agro-primary w-100 py-3 rounded-pill fw-bold mt-auto shadow" onclick="handleServiceClick('diamante')">Contactar Entidad</button>
+                            <button class="btn btn-agro-primary w-100 py-3 rounded-pill fw-bold mt-auto shadow" onclick="initiateBankTransferPurchase('Diamante (Nacional)', 1500, 'government')">Comprar Licencia (Transferencia)</button>
                         </div>
                     </div>
                 </div>
@@ -123,7 +185,7 @@
                             <div class="mb-4 text-white">
                                 <span class="fs-1 fw-900">$3000</span><span class="text-white-50 fw-bold">/mes</span>
                             </div>
-                            <button class="btn w-100 py-3 rounded-pill fw-bold mt-auto text-dark shadow-sm" onclick="handleServiceClick('esmeralda')" style="background: #20c997;">Contactar Global Owner</button>
+                            <button class="btn w-100 py-3 rounded-pill fw-bold mt-auto text-dark shadow-sm" onclick="initiateBankTransferPurchase('Esmeralda (Nacional)', 3000, 'government')" style="background: #20c997;">Comprar Licencia (Transferencia)</button>
                         </div>
                     </div>
                 </div>
@@ -210,6 +272,8 @@
                     </table>
                 </div>
             </div>
+            
+            </div> <!-- End tab content -->
         </div>
 
         <!-- Agro IA Promo Section (G0DM0D3 Tiers) -->
@@ -419,6 +483,120 @@
 
         window.contactCorporation = function() {
             window.location.href = `contact.html?subject=Contacto con AgroSmart Corporation`;
+        };
+
+        window.initiateBankTransferPurchase = async function(planName, amount, type) {
+            const user = await window.AuthObj.getCurrentUser();
+            if (!user) {
+                Swal.fire({
+                    icon: 'info',
+                    title: 'Inicia Sesión',
+                    text: 'Debes iniciar sesión para comprar un plan.',
+                    confirmButtonText: 'Ir al Login',
+                    confirmButtonColor: 'var(--primary-color)'
+                }).then(() => {
+                    window.location.href = 'index.html';
+                });
+                return;
+            }
+
+            let receiptFileUrl = '';
+
+            const { value: formValues } = await Swal.fire({
+                title: `<div style="font-size:1.4rem; font-weight:700; color:var(--text-main); margin-bottom: 5px;">Pago de Plan: ${planName}</div>`,
+                html: `
+                    <div style="text-align: left; margin-top: 15px; font-size: 0.9rem;">
+                        <div class="alert alert-info py-2 small fw-bold">
+                            Monto a transferir: <span class="fs-5">$${amount} USD</span>
+                        </div>
+                        <p class="mb-2">Por favor, realiza la transferencia a la siguiente cuenta bancaria:</p>
+                        <div class="p-3 bg-light rounded border mb-4">
+                            <div class="fw-bold">Bancoagrícola (El Salvador)</div>
+                            <div>Cuenta de Ahorro: <span class="fw-bold fs-5 text-primary">3510994997</span></div>
+                            <div>Titular: <span class="fw-bold">KEVIN CASTRO</span></div>
+                        </div>
+                        <p class="mb-2 fw-bold">Sube la captura (comprobante) de tu transferencia:</p>
+                        <input type="file" id="swal-receipt-file" class="form-control" style="border-radius: 8px;" accept="image/*" required>
+                    </div>
+                `,
+                focusConfirm: false,
+                showCancelButton: true,
+                confirmButtonText: 'Enviar Comprobante',
+                cancelButtonText: 'Cancelar',
+                confirmButtonColor: 'var(--primary-color)',
+                didOpen: () => {
+                    document.getElementById('swal-receipt-file').addEventListener('change', function(e) {
+                        const file = e.target.files[0];
+                        if (file) {
+                            const reader = new FileReader();
+                            reader.onload = function(event) {
+                                const img = new Image();
+                                img.onload = function() {
+                                    const canvas = document.createElement('canvas');
+                                    let width = img.width;
+                                    let height = img.height;
+                                    const MAX_DIM = 800;
+                                    
+                                    if (width > MAX_DIM || height > MAX_DIM) {
+                                        if (width > height) {
+                                            height *= MAX_DIM / width;
+                                            width = MAX_DIM;
+                                        } else {
+                                            width *= MAX_DIM / height;
+                                            height = MAX_DIM;
+                                        }
+                                    }
+                                    
+                                    canvas.width = width;
+                                    canvas.height = height;
+                                    const ctx = canvas.getContext('2d');
+                                    ctx.drawImage(img, 0, 0, width, height);
+                                    
+                                    // Compress to JPEG with 0.6 quality to save local storage quota
+                                    receiptFileUrl = canvas.toDataURL('image/jpeg', 0.6);
+                                };
+                                img.src = event.target.result;
+                            };
+                            reader.readAsDataURL(file);
+                        }
+                    });
+                },
+                preConfirm: () => {
+                    if (!receiptFileUrl) {
+                        Swal.showValidationMessage('Debes subir la captura de la transferencia.');
+                        return false;
+                    }
+                    return {
+                        receipt: receiptFileUrl
+                    };
+                }
+            });
+
+            if (formValues) {
+                Swal.fire({ title: 'Enviando comprobante...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+                try {
+                    await window.DB.createPlanRequest({
+                        user_id: user.id,
+                        country_id: user.country_id,
+                        type: type === 'government' ? 'government_plan_purchase' : 'individual_plan_purchase',
+                        plan_requested: planName,
+                        title: 'Compra de Plan por Transferencia',
+                        description: `Pago de $${amount} procesado por transferencia a cuenta 3510994997.`,
+                        proof_url: formValues.receipt
+                    });
+
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Comprobante Enviado',
+                        text: 'Hemos recibido tu solicitud de pago. Nuestro equipo validará la transferencia en un plazo de 72 horas.',
+                        confirmButtonColor: 'var(--primary-color)'
+                    }).then(() => {
+                        window.location.href = 'dashboard.html';
+                    });
+                } catch(e) {
+                    Swal.fire('Error', 'Hubo un problema enviando el comprobante.', 'error');
+                }
+            }
         };
 
         document.addEventListener('DOMContentLoaded', async () => {

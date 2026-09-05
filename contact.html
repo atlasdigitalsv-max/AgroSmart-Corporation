@@ -13,8 +13,7 @@
 
     <section class="py-5">
         <div class="container animate-slide-up">
-            <!-- Sección de Gestión Avanzada: Soporte Prioritario y Videollamadas -->
-            <div id="advanced-support-container" class="mb-5 mx-auto" style="max-width: 800px;"></div>
+            <!-- Se eliminó la sección de Gestión Avanzada por requerimiento del cliente -->
 
             <div class="p-5 rounded-4 mx-auto shadow-sm" style="max-width: 700px; background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(20px); border: 1px solid rgba(255, 255, 255, 0.9);">
                 <div class="text-center mb-4">
@@ -78,71 +77,7 @@
             const user = await AuthObj.getCurrentUser();
             const emailInput = document.getElementById('contact_email');
             const subjectInput = document.getElementById('contact_subject');
-            const advContainer = document.getElementById('advanced-support-container');
-            
-            // Renderizado dinámico de la sección de Gestión Avanzada (Videollamada)
-            if (advContainer) {
-                let hasVideoAccess = false;
-                if (user && user.id !== 'guest' && !user._isStub) {
-                    if (user.is_superuser || ['global_owner', 'ministry_admin'].includes(user.role)) {
-                        hasVideoAccess = true;
-                    } else {
-                        const currentPlan = (user.plan || 'none').toLowerCase();
-                        hasVideoAccess = ['diamante', 'esmeralda'].includes(currentPlan);
-                        if (!hasVideoAccess && user.country_id && window.DB) {
-                            try {
-                                const countries = await window.DB.getCountries();
-                                const userCountry = countries.find(c => String(c.id) === String(user.country_id));
-                                if (userCountry && ['diamante', 'esmeralda'].includes((userCountry.plan || '').toLowerCase())) {
-                                    hasVideoAccess = true;
-                                }
-                            } catch(err) { console.warn("Silent fallback country check:", err); }
-                        }
-                    }
-                }
-
-                if (hasVideoAccess) {
-                    advContainer.innerHTML = `
-                        <div class="p-4 rounded-4 text-white shadow-lg" style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); border: 1px solid rgba(139, 92, 246, 0.4);">
-                            <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
-                                <div class="d-flex align-items-center gap-3">
-                                    <div class="fs-1 text-warning" style="filter: drop-shadow(0 0 15px rgba(245,158,11,0.5));">⭐</div>
-                                    <div>
-                                        <div class="badge bg-primary px-3 py-1 mb-1 text-uppercase fw-bold" style="letter-spacing: 0.5px; font-size: 0.7rem;">Soporte Prioritario Habilitado</div>
-                                        <h4 class="fw-800 mb-1 text-white">Gestión Avanzada por Videollamada</h4>
-                                        <p class="text-white-50 small mb-0">Atención técnica satelital en tiempo real con apertura de fichas de reporte y seguimiento.</p>
-                                    </div>
-                                </div>
-                                <div>
-                                    <a href="calls.html" class="btn px-4 py-3 rounded-pill fw-bold shadow-sm d-flex align-items-center gap-2 text-white" style="background: linear-gradient(135deg, #8b5cf6, #6366f1); border: none; transition: transform 0.2s;">
-                                        <i class="bi bi-camera-video-fill fs-5"></i>
-                                        <span>Iniciar Gestión Avanzada</span>
-                                    </a>
-                                </div>
-                            </div>
-                        </div>
-                    `;
-                } else {
-                    advContainer.innerHTML = `
-                        <div class="p-4 rounded-4 shadow-sm" style="background: linear-gradient(135deg, rgba(139, 92, 246, 0.06) 0%, rgba(16, 185, 129, 0.04) 100%); border: 1px dashed rgba(139, 92, 246, 0.4);">
-                            <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
-                                <div class="d-flex align-items-center gap-3">
-                                    <div class="fs-1 text-primary"><i class="bi bi-shield-lock-fill"></i></div>
-                                    <div>
-                                        <h5 class="fw-bold mb-1 text-dark">Gestión Avanzada por Videollamada</h5>
-                                        <p class="text-muted small mb-0">El soporte prioritario satelital y la generación de fichas en vivo es exclusivo de las licencias <strong class="text-primary">Diamante</strong> y <strong class="text-success">Esmeralda</strong>.</p>
-                                    </div>
-                                </div>
-                                <div>
-                                    <a href="services.html" class="btn btn-outline-primary px-4 py-2 rounded-pill fw-bold small">
-                                        <i class="bi bi-gem me-1"></i> Ver Planes de Licencia
-                                    </a>
-                                </div>
-                            </div>
-                        </div>
-                    `;
-                }
-            }
+            // Se eliminó la lógica de renderizado de la sección de Gestión Avanzada (Videollamada)
 
             // Auto-rellenar y bloquear el correo si el usuario está registrado
             if (user && user.id !== 'guest' && !user._isStub && emailInput) {

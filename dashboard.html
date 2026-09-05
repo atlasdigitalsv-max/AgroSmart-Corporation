@@ -416,6 +416,9 @@
             }
 
             if (user) {
+                // Lógica de herencia de plan / solicitud de ingreso
+                checkAndPromptPlan(user);
+
                 if (crops.length === 0) {
                     cropsContainer.innerHTML = `<div class="col-12"><div class="agro-card p-4 text-center text-muted"><i class="bi bi-box fs-1 mb-2"></i><br>No tienes parcelas registradas aún. <a href="crop_create.html" class="text-success fw-bold">Empieza por aquí</a>.</div></div>`;
                 } else {
@@ -937,6 +940,141 @@
                 }, 800);
             }
         };
+
+        async function checkAndPromptPlan(user) {
+            if (['global_owner', 'ministry_admin', 'org_admin'].includes(user.role)) return;
+            if (sessionStorage.getItem('plan_checked')) return;
+
+            const userPlan = user.plan && user.plan !== 'none' ? user.plan : null;
+            if (userPlan) {
+                sessionStorage.setItem('plan_checked', 'true');
+                return;
+            }
+
+            try {
+                const countries = await window.DB.getCountries();
+                const country = countries.find(c => String(c.id) === String(user.country_id));
+                const countryPlan = country ? (country.plan || 'none') : 'none';
+
+                if (countryPlan === 'none') {
+                    Swal.fire({
+                        icon: 'warning',
+                        title: 'Licencia Requerida',
+                        text: 'Para usar AgroSmart necesitas adquirir una licencia. No cuentas con un plan activo y tu país no tiene una Licencia Gubernamental.',
+                        confirmButtonText: 'Ver Planes y Licencias',
+                        allowOutsideClick: false,
+                        allowEscapeKey: false
+                    }).then(() => {
+                        window.location.href = 'services.html';
+                    });
+                    return;
+                }
+
+                if (countryPlan === 'esmeralda') {
+                    await window.DB.updateUserPlan(user.id, 'esmeralda');
+                    sessionStorage.setItem('plan_checked', 'true');
+                    Swal.fire({
+                        icon: 'success',
+                        title: '¡Plan Esmeralda Activado!',
+                        text: 'Tu país cuenta con Licencia Esmeralda. Disfruta de todos los beneficios sin límites.',
+                        timer: 3000,
+                        showConfirmButton: false
+                    }).then(() => window.location.reload());
+                    return;
+                }
+
+                const pendingReqs = await window.DB.getPlanRequests(user.country_id);
+                const hasPending = pendingReqs.some(r => r.user_id === user.id && r.status === 'pending');
+                if (hasPending) {
+                    Swal.fire({
+                        icon: 'info',
+                        title: 'Solicitud en Revisión',
+                        text: 'Tienes una solicitud de plan en revisión. Tendrás acceso limitado hasta que sea aprobada.',
+                        confirmButtonText: 'Entendido'
+                    });
+                    sessionStorage.setItem('plan_checked', 'true');
+                    return;
+                }
+
+                if (localStorage.getItem(`hideGovPrompt_${user.id}`)) {
+                    Swal.fire({
+                        icon: 'warning',
+                        title: 'Licencia Requerida',
+                        text: 'Necesitas adquirir un plan individual para poder utilizar el sistema.',
+                        confirmButtonText: 'Ver Planes Individuales',
+                        allowOutsideClick: false,
+                        allowEscapeKey: false
+                    }).then(() => {
+                        window.location.href = 'services.html';
+                    });
+                    return;
+                }
+
+                let dontShowChecked = false;
+                const result = await Swal.fire({
+                    title: 'Licencia Regional Disponible',
+                    html: `
+                        <p class="small text-muted mb-3">Tu país tiene una Licencia Gubernamental (${countryPlan.toUpperCase()}). ¿Deseas solicitar acceso a los beneficios de esta licencia?</p>
+                        <input id="swal-req-title" class="form-control mb-2" placeholder="Título de tu solicitud" value="Solicitud de inclusión a licencia">
+                        <textarea id="swal-req-desc" class="form-control mb-3" rows="3" placeholder="Describe brevemente el motivo por el cual deseas ingresar a la licencia del gobierno..."></textarea>
+                        <div class="form-check text-start d-flex align-items-center justify-content-center">
+                            <input class="form-check-input me-2 shadow-sm" type="checkbox" id="swal-req-dontshow">
+                            <label class="form-check-label text-muted small" for="swal-req-dontshow">No volver a preguntarme</label>
+                        </div>
+                    `,
+                    focusConfirm: false,
+                    showCancelButton: true,
+                    confirmButtonText: 'Enviar Solicitud',
+                    cancelButtonText: 'No, gracias',
+                    confirmButtonColor: 'var(--primary-color)',
+                    allowOutsideClick: false,
+                    allowEscapeKey: false,
+                    didOpen: () => {
+                        document.getElementById('swal-req-dontshow').addEventListener('change', (e) => {
+                            dontShowChecked = e.target.checked;
+                        });
+                    },
+                    preConfirm: () => {
+                        return {
+                            title: document.getElementById('swal-req-title').value,
+                            desc: document.getElementById('swal-req-desc').value
+                        }
+                    }
+                });
+
+                if (dontShowChecked) {
+                    localStorage.setItem(`hideGovPrompt_${user.id}`, 'true');
+                }
+
+                if (result.isConfirmed && result.value) {
+                    await window.DB.createPlanRequest({
+                        user_id: user.id,
+                        country_id: user.country_id,
+                        type: 'government_access',
+                        plan_requested: countryPlan,
+                        title: result.value.title,
+                        description: result.value.desc
+                    });
+                    Swal.fire('Solicitud Enviada', 'Los administradores de tu región revisarán la solicitud.', 'success');
+                } else if (result.isDismissed) {
+                    Swal.fire({
+                        icon: 'warning',
+                        title: 'Licencia Requerida',
+                        text: 'Has rechazado la solicitud a la licencia gubernamental. Necesitas adquirir un plan individual para poder utilizar el sistema.',
+                        confirmButtonText: 'Ver Planes Individuales',
+                        allowOutsideClick: false,
+                        allowEscapeKey: false
+                    }).then(() => {
+                        window.location.href = 'services.html';
+                    });
+                    return;
+                }
+                
+                sessionStorage.setItem('plan_checked', 'true');
+            } catch(e) {
+                console.warn('Error checking plan:', e);
+            }
+        }
 
         document.addEventListener('DOMContentLoaded', initDashboard);
     </script>

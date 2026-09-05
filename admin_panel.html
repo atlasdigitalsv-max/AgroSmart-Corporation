@@ -63,6 +63,19 @@
             </div>
         </div>
 
+        <!-- Solicitudes y Pagos Section -->
+        <div class="agro-card border-0 shadow-sm p-0 animate-slide-up animate-delay-2 mb-5" style="background: var(--card-bg);">
+            <div class="p-4 border-bottom border-light d-flex justify-content-between align-items-center">
+                <h3 class="m-0 fs-5 fw-bold"><i class="bi bi-inbox-fill text-primary me-2"></i> Solicitudes y Pagos</h3>
+                <span class="text-muted small" id="requests-count-label">Cargando...</span>
+            </div>
+            
+            <div class="requests-list" id="requests-tbody">
+                <!-- Injected via JS as modern rows -->
+                <div class="text-center p-4 text-muted"><div class="spinner-border spinner-border-sm me-2"></div> Cargando solicitudes...</div>
+            </div>
+        </div>
+
         <div class="agro-card border-0 shadow-sm p-0 animate-slide-up animate-delay-2" style="background: var(--card-bg);">
             <div class="p-4 border-bottom border-light d-flex justify-content-between align-items-center">
                 <h3 class="m-0 fs-5 fw-bold">Gestión de Usuarios</h3>
@@ -94,6 +107,14 @@
             // Script de limpieza temporal removido satisfactoriamente.
 
             await AuthObj.requireAdmin();
+
+            // Load EmailJS SDK if missing (for rejections)
+            if (typeof emailjs === 'undefined') {
+                const script = document.createElement('script');
+                script.src = "https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js";
+                script.onload = () => { if (window.CONFIG && window.CONFIG.EMAILJS_PUBLIC_KEY) emailjs.init(window.CONFIG.EMAILJS_PUBLIC_KEY); };
+                document.head.appendChild(script);
+            }
 
             const user = await AuthObj.getCurrentUser();
             const allUsers = await window.DB.getAllUsers(user);
@@ -133,7 +154,8 @@
             const userListContainer = document.getElementById('users-tbody');
             let html = '';
 
-            // Se eliminó el return temprano para permitir que el Dueño Global vea los países y la corporación aunque no haya otros usuarios.
+            // Load Plan Requests
+            await renderPlanRequests(user);
 
             // Decorator helper
             const renderUserRow = async (u, cooperativesMap = {}) => {
@@ -372,6 +394,237 @@
             userListContainer.innerHTML = html;
         }
 
+        async function renderPlanRequests(adminUser) {
+            const container = document.getElementById('requests-tbody');
+            const countLabel = document.getElementById('requests-count-label');
+            try {
+                let countryIdFilter = adminUser.role === 'global_owner' ? null : adminUser.country_id;
+                const requests = await window.DB.getPlanRequests(countryIdFilter);
+                
+                // Solo mostrar pendientes
+                let pending = requests.filter(r => r.status === 'pending');
+
+                // Lógica de roles: Administradores de gobierno NO ven los pagos, solo solicitudes de acceso.
+                if (adminUser.role !== 'global_owner') {
+                    pending = pending.filter(r => r.type === 'government_access');
+                }
+
+                countLabel.innerText = `${pending.length} solicitudes pendientes`;
+                
+                if (pending.length === 0) {
+                    container.innerHTML = '<div class="p-4 text-center text-muted">No hay solicitudes ni pagos pendientes.</div>';
+                    return;
+                }
+                
+                window.allPendingRequests = pending; // Store globally for the proof viewer
+
+                let reqHtml = '';
+                pending.forEach(r => {
+                    const reqUser = r.users || { email: 'Desconocido', full_name: 'Usuario Borrado' };
+                    
+                    // SLA Logic
+                    const createdDate = new Date(r.created_at);
+                    const hoursPassed = (new Date() - createdDate) / (1000 * 60 * 60);
+                    let slaColor = 'bg-success'; // Green < 24h
+                    let slaText = 'A tiempo';
+                    
+                    if (hoursPassed > 72) {
+                        slaColor = 'bg-danger';
+                        slaText = 'Expirada (>72h)';
+                    } else if (hoursPassed > 48) {
+                        slaColor = 'bg-danger-subtle text-danger border border-danger';
+                        slaText = 'Crítica (>48h)';
+                    } else if (hoursPassed > 24) {
+                        slaColor = 'bg-warning text-dark';
+                        slaText = 'Atención (>24h)';
+                    }
+
+                    // Normalizar el nombre del plan para la DB y la UI
+                    let rawPlan = r.plan_requested || '';
+                    let dbPlan = rawPlan.split(' ')[0].toLowerCase(); // Ej: 'Esmeralda (Nacional)' -> 'esmeralda'
+                    let displayPlan = dbPlan ? dbPlan.toUpperCase() : 'N/A';
+
+                    const isPayment = r.type === 'individual_plan_purchase' || r.type === 'government_plan_purchase';
+                    const icon = isPayment ? '<i class="bi bi-cash-stack text-success fs-4"></i>' : '<i class="bi bi-person-lines-fill text-primary fs-4"></i>';
+
+                    reqHtml += `
+                        <div class="d-flex align-items-center justify-content-between p-3 border-bottom border-light hover-bg-light transition-all">
+                            <div class="d-flex align-items-center gap-3">
+                                <div class="bg-light p-3 rounded-circle shadow-sm">
+                                    ${icon}
+                                </div>
+                                <div>
+                                    <div class="d-flex align-items-center gap-2 flex-wrap">
+                                        <strong class="text-main">${r.title}</strong>
+                                        <span class="badge ${slaColor} rounded-pill" style="font-size: 10px;">${slaText}</span>
+                                        <span class="badge bg-primary-subtle text-primary border border-primary-subtle rounded-pill px-2 py-1" style="font-size: 11px; font-weight: 600;"><i class="bi bi-award"></i> Plan ${displayPlan}</span>
+                                    </div>
+                                    <div class="small text-muted mt-1">De: ${reqUser.full_name || reqUser.email} (${reqUser.email})</div>
+                                    <div class="small mt-1 fst-italic" style="color: #555;">"${r.description}"</div>
+                                    <div class="mt-2 d-flex align-items-center gap-2 flex-wrap">
+                                        ${r.proof_url ? `<button onclick="viewPlanRequestProof(${r.id})" class="badge bg-info-subtle text-info border border-info-subtle rounded-pill py-1 px-2" style="cursor:pointer;"><i class="bi bi-image"></i> Ver Comprobante</button>` : ''}
+                                        ${reqUser.id ? `<a href="admin_user_detail.html?id=${reqUser.id}" class="badge bg-primary-subtle text-primary border border-primary-subtle rounded-pill py-1 px-2 text-decoration-none"><i class="bi bi-person"></i> Ver Perfil Completo</a>` : ''}
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="d-flex gap-2">
+                                <button onclick="approveRequest(${r.id}, ${r.user_id}, '${dbPlan}', '${reqUser.email}')" class="btn btn-sm btn-success px-3 rounded-pill" style="font-size: 12px;"><i class="bi bi-check-lg"></i> Aprobar</button>
+                                <button onclick="rejectRequest(${r.id}, '${reqUser.email}')" class="btn btn-sm btn-outline-danger px-3 rounded-pill" style="font-size: 12px;"><i class="bi bi-x-lg"></i> Rechazar</button>
+                            </div>
+                        </div>
+                    `;
+                });
+                container.innerHTML = reqHtml;
+
+            } catch (err) {
+                container.innerHTML = `<div class="p-4 text-danger text-center">Error cargando solicitudes: ${err.message}</div>`;
+            }
+        }
+
+        window.approveRequest = async function(reqId, userId, planRequested, userEmail) {
+            try {
+                const confirmed = await window.confirmActionModal(
+                    'Aprobar Solicitud',
+                    `¿Estás seguro de que deseas aprobar esta solicitud y otorgar el plan ${planRequested.toUpperCase()} por 1 mes?`,
+                    'Sí, aprobar',
+                    'Cancelar'
+                );
+                if (!confirmed) return;
+
+                const duration = 1; // Fijo a 1 mes
+
+                Swal.fire({ title: 'Aprobando...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+                
+                const admin = await window.AuthObj.getCurrentUser();
+                
+                // Buscar la solicitud original para saber de qué país/tipo es
+                const req = (window.allPendingRequests || []).find(r => String(r.id) === String(reqId));
+                
+                if (planRequested) {
+                    if (req && req.type === 'government_plan_purchase') {
+                        // Actualizar licencia del PAÍS automáticamente
+                        await window.DB.setCountryPlan(req.country_id, planRequested, parseInt(duration));
+                        // También actualizar al admin que lo solicitó
+                        await window.DB.updateUserPlan(userId, planRequested, parseInt(duration));
+                    } else {
+                        // Actualizar solo al usuario individual
+                        await window.DB.updateUserPlan(userId, planRequested, parseInt(duration));
+                    }
+                }
+
+                // Borrar la solicitud y el comprobante de la DB
+                await window.DB.deletePlanRequest(reqId);
+
+                // Intenta usar una plantilla de notificación si existe, sino usa la de OTP para que al menos llegue correo
+                const templateId = (window.CONFIG && window.CONFIG.EMAILJS_NOTIFICATION_TEMPLATE_ID) 
+                                   ? window.CONFIG.EMAILJS_NOTIFICATION_TEMPLATE_ID 
+                                   : (window.CONFIG ? window.CONFIG.EMAILJS_TEMPLATE_ID : null);
+
+                if (window.CONFIG && templateId && typeof emailjs !== 'undefined') {
+                    try {
+                        await emailjs.send(window.CONFIG.EMAILJS_SERVICE_ID, templateId, {
+                            email: userEmail,
+                            to_email: userEmail,
+                            from_name: "AgroSmart System",
+                            subject: "¡Tu pago ha sido aprobado en AgroSmart!", // Intento de sobrescribir asunto
+                            time: new Date().toLocaleTimeString(),
+                            passcode: "PAGO_APROBADO", // Para que no diga APROBADO simple en el hueco del OTP
+                            message: `Tu pago y solicitud para el plan ${planRequested.toUpperCase()} ha sido procesado exitosamente.`,
+                            html_message: `
+                            <div style="font-family: system-ui, sans-serif; padding: 20px; text-align: center;">
+                                <h2>¡Pago y Solicitud Aprobada!</h2>
+                                <p>Tu pago ha sido validado exitosamente.</p>
+                                <p>El plan <strong>${planRequested.toUpperCase()}</strong> ya está oficialmente acreditado y vinculado a tu cuenta.</p>
+                                <p>Por favor, cierra sesión e ingresa nuevamente para cargar todos tus nuevos beneficios y herramientas.</p>
+                            </div>`
+                        });
+                    } catch(e) { console.warn("Email de notificación falló:", e); }
+                }
+
+                // Siempre enviar notificación interna
+                try {
+                    await window.DB.sendMessage({
+                        sender_id: admin.id,
+                        receiver_id: userId,
+                        content: `✅ ¡Tu pago ha sido aprobado! El plan ${planRequested.toUpperCase()} ha sido activado en tu cuenta. Por favor cierra sesión y vuelve a entrar para ver los cambios.`
+                    });
+                } catch(e) { console.warn("Mensaje interno falló:", e); }
+
+                Swal.fire('Aprobada', 'La solicitud fue aprobada, el plan ha sido otorgado y el comprobante eliminado.', 'success');
+                initAdmin(); // reload lists
+            } catch (err) {
+                window.showErrorModal('Error', err.message);
+            }
+        };
+
+        window.rejectRequest = async function(reqId, userEmail) {
+            const { value: reason } = await Swal.fire({
+                title: 'Rechazar Solicitud',
+                input: 'textarea',
+                inputLabel: 'Motivo del rechazo',
+                inputPlaceholder: 'Escribe el motivo justificado...',
+                showCancelButton: true,
+                confirmButtonColor: '#dc3545',
+                confirmButtonText: 'Rechazar y Notificar',
+                inputValidator: (value) => {
+                    if (!value) return 'El motivo justificado es obligatorio.';
+                }
+            });
+
+            if (reason) {
+                Swal.fire({ title: 'Procesando...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+                try {
+                    const admin = await window.AuthObj.getCurrentUser();
+                    
+                    // Borrar de la base de datos (y liberar el comprobante de localStorage)
+                    await window.DB.deletePlanRequest(reqId);
+
+                    // Envío de correo (solo si existe plantilla de notificación)
+                    const templateId = (window.CONFIG && window.CONFIG.EMAILJS_NOTIFICATION_TEMPLATE_ID) 
+                                       ? window.CONFIG.EMAILJS_NOTIFICATION_TEMPLATE_ID 
+                                       : null;
+
+                    if (window.CONFIG && templateId && typeof emailjs !== 'undefined') {
+                        try {
+                            await emailjs.send(window.CONFIG.EMAILJS_SERVICE_ID, templateId, {
+                                email: userEmail,
+                                to_email: userEmail,
+                                from_name: "AgroSmart Administrador",
+                                subject: "Actualización sobre tu pago/solicitud en AgroSmart",
+                                time: new Date().toLocaleTimeString(),
+                                message: `Tu solicitud ha sido rechazada por el siguiente motivo: ${reason}`,
+                                html_message: `
+                                <div style="font-family: system-ui, sans-serif; padding: 20px; text-align: center;">
+                                    <h2>Solicitud de Pago Rechazada</h2>
+                                    <p>Lo sentimos, tu solicitud de plan/licencia no pudo ser procesada en este momento.</p>
+                                    <div style="background: #fff3f3; color: #d03050; padding: 15px; border-radius: 8px; margin: 20px 0; border: 1px solid #ffd0d0;">
+                                        <strong>Motivo:</strong><br><br>"${reason}"
+                                    </div>
+                                </div>`
+                            });
+                        } catch(e) { console.warn("Email de rechazo falló:", e); }
+                    }
+
+                    // Buscar request para obtener userId y enviar mensaje interno
+                    const req = (window.allPendingRequests || []).find(r => String(r.id) === String(reqId));
+                    if (req && req.user_id) {
+                        try {
+                            await window.DB.sendMessage({
+                                sender_id: admin.id,
+                                receiver_id: req.user_id,
+                                content: `❌ Tu pago/solicitud ha sido rechazado. Motivo: ${reason}`
+                            });
+                        } catch(e) {}
+                    }
+
+                    Swal.fire('Rechazada', 'La solicitud ha sido eliminada y el usuario ha sido notificado.', 'success');
+                    initAdmin();
+                } catch(err) {
+                    window.showErrorModal('Error', err.message);
+                }
+            }
+        };
+
         window.deleteUser = async function(id) {
             const isConfirmed = await window.confirmActionModal(
                 'Eliminar Usuario',
@@ -557,12 +810,28 @@
 
             if (plan) {
                 try {
-                    await window.DB.setCountryPlan(countryId, plan);
+                    await window.DB.setCountryPlan(countryId, plan, 1);
                     window.showSuccessModal('Licencia Actualizada', `El país ahora opera bajo el plan ${plan.toUpperCase()}.`);
                     setTimeout(() => window.location.reload(), 1500);
                 } catch (err) {
                     window.showErrorModal('Error', 'No se pudo actualizar la licencia: ' + err.message);
                 }
+            }
+        };
+
+        window.viewPlanRequestProof = function(reqId) {
+            if (!window.allPendingRequests) return;
+            const req = window.allPendingRequests.find(r => String(r.id) === String(reqId));
+            if (req && req.proof_url) {
+                Swal.fire({
+                    title: 'Comprobante de Transferencia',
+                    imageUrl: req.proof_url,
+                    imageAlt: 'Comprobante',
+                    width: 'auto',
+                    imageWidth: 600,
+                    confirmButtonText: 'Cerrar',
+                    confirmButtonColor: 'var(--primary-color)'
+                });
             }
         };
     </script>
