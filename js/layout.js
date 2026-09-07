@@ -775,3 +775,23 @@ document.addEventListener('mousemove', e => {
         card.style.setProperty('--mouse-y', `${y}px`);
     });
 });
+
+// === BLOQUEO GLOBAL DE ZOOM PARA MÓVILES (Especialmente iOS) ===
+// Previene el zoom pellizcando la pantalla
+document.addEventListener('gesturestart', function(e) {
+    e.preventDefault();
+});
+document.addEventListener('touchstart', function(event) {
+    if (event.touches.length > 1) {
+        event.preventDefault(); // Desactiva multitouch (pinch-to-zoom)
+    }
+}, { passive: false });
+// Previene el zoom al hacer doble toque
+let lastTouchEnd = 0;
+document.addEventListener('touchend', function(event) {
+    const now = (new Date()).getTime();
+    if (now - lastTouchEnd <= 300) {
+        event.preventDefault();
+    }
+    lastTouchEnd = now;
+}, false);
