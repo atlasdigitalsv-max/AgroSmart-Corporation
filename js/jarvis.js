@@ -700,17 +700,14 @@ CONVERSACIÓN CONTINUA Y DESPEDIDA:
     createWidget() {
         const widget = document.createElement('div');
         widget.id = 'jarvis-siri-widget';
-        widget.className = 'jarvis-siri-widget hidden'; // Hidden by default
+        widget.className = 'jarvis-siri-widget hidden ai-floating-orb'; // Hidden by default, uses AI Orb style
         widget.innerHTML = `
-            <div class="siri-wave-container">
-                <div class="siri-wave"></div>
-                <div class="siri-wave"></div>
-                <div class="siri-wave"></div>
-                <i class="bi bi-mic-fill siri-icon"></i>
+            <div class="siri-wave-container" style="display: flex; align-items: center; justify-content: center; width: 100%; height: 100%;">
+                <i class="bi bi-robot siri-icon" style="font-size: 32px;"></i>
             </div>
-            <div class="siri-text">Escuchando...</div>
+            <div class="siri-text" style="position: absolute; bottom: -25px; font-size: 12px; font-weight: bold; background: rgba(0,0,0,0.7); padding: 2px 8px; border-radius: 10px; display: none;">Escuchando...</div>
             <button id="jarvis-mute-btn" class="btn rounded-circle position-absolute shadow d-flex align-items-center justify-content-center" style="top: -6px; left: -6px; width: 26px; height: 26px; padding: 0; display: none; z-index: 101; border: 2px solid white; background: #f59e0b; color: white;" title="Interrumpir voz y seguir hablando"><i class="bi bi-stop-fill" style="font-size: 14px;"></i></button>
-            <button id="jarvis-power-btn" class="btn rounded-circle position-absolute shadow d-flex align-items-center justify-content-center" style="top: -6px; right: -6px; width: 26px; height: 26px; padding: 0; z-index: 101; border: 2px solid white; background: #ef4444; color: white;" title="Despedirse y Cerrar Jarvis"><i class="bi bi-power" style="font-size: 14px;"></i></button>
+            <button id="jarvis-power-btn" class="btn rounded-circle position-absolute shadow d-flex align-items-center justify-content-center" style="top: -6px; right: -6px; width: 26px; height: 26px; padding: 0; z-index: 101; border: 2px solid white; background: #ef4444; color: white; display: none;" title="Despedirse y Cerrar Jarvis"><i class="bi bi-power" style="font-size: 14px;"></i></button>
         `;
         
         document.body.appendChild(widget);
@@ -750,10 +747,13 @@ CONVERSACIÓN CONTINUA Y DESPEDIDA:
         
         if (widget) {
             if (state === 'idle') {
-                widget.className = 'jarvis-siri-widget hidden';
+                widget.className = 'jarvis-siri-widget hidden ai-floating-orb';
+                if (textObj) textObj.style.display = 'none';
+                if (powerBtn) powerBtn.style.display = 'none';
             } else {
-                widget.className = `jarvis-siri-widget visible ${state}`;
+                widget.className = `jarvis-siri-widget visible ai-floating-orb ${state}`;
                 if (textObj) {
+                    textObj.style.display = 'block';
                     if (state === 'listening') textObj.textContent = 'Te escucho...';
                     if (state === 'processing') textObj.textContent = 'Pensando...';
                     if (state === 'speaking') textObj.textContent = 'Jarvis';

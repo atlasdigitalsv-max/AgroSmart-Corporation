@@ -5,14 +5,16 @@ Eres experto en:
 - Tipos de cultivo, fertilización, control de plagas y enfermedades.
 - Calendarios lunares agrícolas (cuándo sembrar, podar, cosechar según la fase de la luna).
 - Análisis de variables climáticas básicas.
+- **Diagnóstico Visual de Cultivos**: Si el usuario te envía una foto, eres un experto detectando deficiencias nutricionales, enfermedades por hongos/bacterias, plagas y estrés hídrico. Analiza detalladamente la imagen y sugiere tratamientos precisos.
 Responde de forma clara, amigable y estructurada. Usa formato Markdown para listas, negritas y tablas cuando sea necesario.
 No te desvíes a temas que no tengan relación con agricultura, botánica o la plataforma AgroSmart.`;
 
 // Clave OpenRouter desde configuración global o codificada en Base64
 let openRouterKey = (typeof CONFIG !== 'undefined' && CONFIG.OPENROUTER_API_KEY) ? CONFIG.OPENROUTER_API_KEY : atob('c2stb3ItdjEtYTIwNjYxYmQ1OGZiZGYzMzYxZTJhMTUxMWEyNzNjNWUwM2I4N2M1N2NkMDY3MTQ4MjE2ZTQ3MjQ1ZTc1YTYxNg==');
-let currentModel = localStorage.getItem('agrosmart_ai_model') || 'google/gemini-2.0-flash-001';
+let currentModel = localStorage.getItem('agrosmart_ai_model') || 'openrouter/free';
+let currentImageBase64 = null;
 if (currentModel.includes('2.5-flash')) {
-    currentModel = 'google/gemini-2.0-flash-001';
+    currentModel = 'openrouter/free';
     localStorage.setItem('agrosmart_ai_model', currentModel);
 }
 let chatHistory = [];
@@ -43,17 +45,31 @@ document.addEventListener('DOMContentLoaded', () => {
     chatForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         const message = chatInput.value.trim();
-        if (!message) return;
+        if (!message && !currentImageBase64) return;
 
-        // Hardcoded key is always present
+        // Save references before clearing
+        const txt = message || "Analiza esta imagen de mi cultivo, por favor.";
+        const img = currentImageBase64;
 
         // Add User Message to UI
-        addMessageToUI('user', message);
+        addMessageToUI('user', txt, img);
+        
         chatInput.value = '';
         chatInput.style.height = 'auto';
+        removeImage(); // clear preview
 
-        // Add User Message to History
-        chatHistory.push({ role: 'user', content: message });
+        // Add User Message to History in multimodal format if image exists
+        if (img) {
+            chatHistory.push({
+                role: 'user',
+                content: [
+                    { type: 'text', text: txt },
+                    { type: 'image_url', image_url: { url: img } }
+                ]
+            });
+        } else {
+            chatHistory.push({ role: 'user', content: txt });
+        }
 
         // Show Typing Indicator
         const typingId = showTypingIndicator();
@@ -72,7 +88,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         } catch (error) {
             removeTypingIndicator(typingId);
-            console.warn("AI chat warning:", error);
+            // console.warn removed
             Swal.fire({
                 icon: 'error',
                 title: 'Error de Conexión',
@@ -88,7 +104,10 @@ document.addEventListener('DOMContentLoaded', () => {
     if (currentModel) {
         document.getElementById('model-select').value = currentModel;
     }
-    // Si el valor de localStorage ya no existe (ej. modelos antiguos), el select tomará el default
+    // Si el valor de localStorage ya no existe (ej. modelos antiguos), el select tomará el default o vacío.
+    if (!document.getElementById('model-select').value) {
+        document.getElementById('model-select').selectedIndex = 0;
+    }
     // Actualizamos currentModel al valor real y válido del select:
     currentModel = document.getElementById('model-select').value;
     
@@ -127,23 +146,80 @@ document.addEventListener('DOMContentLoaded', () => {
 
 function getSelectedModelName() {
     const select = document.getElementById('model-select');
-    if (select && select.options.length > 0) {
+    if (select && select.options.length > 0 && select.selectedIndex >= 0) {
         return select.options[select.selectedIndex].text;
     }
-    return 'G0DM0D3 Engine';
+    return 'G0DM0D3 Engine (Automático)';
 }
 
-function addMessageToUI(sender, text) {
+// Window functions for Image Upload UI
+window.handleImageSelect = function(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        const img = new Image();
+        img.onload = function() {
+            // Compress and resize image
+            const canvas = document.createElement('canvas');
+            const MAX_WIDTH = 800;
+            const MAX_HEIGHT = 800;
+            let width = img.width;
+            let height = img.height;
+
+            if (width > height) {
+                if (width > MAX_WIDTH) {
+                    height *= MAX_WIDTH / width;
+                    width = MAX_WIDTH;
+                }
+            } else {
+                if (height > MAX_HEIGHT) {
+                    width *= MAX_HEIGHT / height;
+                    height = MAX_HEIGHT;
+                }
+            }
+
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, width, height);
+
+            // Compress as JPEG 70% quality to save tokens/bandwidth
+            currentImageBase64 = canvas.toDataURL('image/jpeg', 0.7);
+            
+            // Show preview
+            document.getElementById('image-preview').src = currentImageBase64;
+            document.getElementById('image-preview-container').classList.remove('d-none');
+        };
+        img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+};
+
+window.removeImage = function() {
+    currentImageBase64 = null;
+    document.getElementById('image-preview').src = '';
+    document.getElementById('image-preview-container').classList.add('d-none');
+    document.getElementById('chat-image-input').value = ''; // reset file input
+};
+
+function addMessageToUI(sender, text, imageUrl = null) {
     const messagesContainer = document.getElementById('chat-messages');
     const bubble = document.createElement('div');
     
     if (sender === 'user') {
         bubble.className = 'chat-bubble chat-bubble-user';
+        let imgHtml = '';
+        if (imageUrl) {
+            imgHtml = `<div class="mb-2 text-end"><img src="${imageUrl}" style="max-width: 100%; max-height: 200px; border-radius: 8px;"></div>`;
+        }
         bubble.innerHTML = `
             <div class="d-flex gap-2 mb-2 align-items-center justify-content-end">
                 <strong class="small">Tú</strong>
                 <i class="bi bi-person-fill text-white"></i>
             </div>
+            ${imgHtml}
             <div class="text-start" style="white-space: pre-wrap;">${escapeHTML(text)}</div>
         `;
     } else {

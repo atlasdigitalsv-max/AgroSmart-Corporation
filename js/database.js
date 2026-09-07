@@ -2039,9 +2039,11 @@ window.AuthObj = {
                 console.log("¡Login exitoso!");
                 sessionStorage.setItem('current_user_id', user.id);
                 try {
-                    localStorage.setItem('agrosmart_user_cache', JSON.stringify(user));
+                    let cacheUser = { ...user };
+                    if (cacheUser.avatar_url && cacheUser.avatar_url.length > 500) delete cacheUser.avatar_url;
+                    localStorage.setItem('agrosmart_user_cache', JSON.stringify(cacheUser));
                 } catch(err) {
-                    console.warn("No se pudo guardar la caché de usuario (¿Cuota excedida?)", err);
+                    // Silently ignore to avoid console errors
                 }
                 sessionStorage.setItem('show_welcome_modal', 'true');
                 return true;
@@ -2104,9 +2106,11 @@ window.AuthObj = {
                 return getCachedUser();
             }
             try {
-                localStorage.setItem('agrosmart_user_cache', JSON.stringify(user));
+                let cacheUser = { ...user };
+                if (cacheUser.avatar_url && cacheUser.avatar_url.length > 500) delete cacheUser.avatar_url;
+                localStorage.setItem('agrosmart_user_cache', JSON.stringify(cacheUser));
             } catch(err) {
-                console.warn("No se pudo guardar caché en refreshUser", err);
+                // Silently ignore to avoid console errors
             }
             return user;
         } catch (e) {
@@ -2173,7 +2177,13 @@ window.AuthObj = {
                     }
                 }
 
-                localStorage.setItem('agrosmart_user_cache', JSON.stringify(user));
+                try {
+                    let cacheUser = { ...user };
+                    if (cacheUser.avatar_url && cacheUser.avatar_url.length > 500) delete cacheUser.avatar_url;
+                    localStorage.setItem('agrosmart_user_cache', JSON.stringify(cacheUser));
+                } catch(err) {
+                    // Silently ignore
+                }
             }
         } catch(e) {
             console.error("[Licencia] Error verificando expiración:", e);

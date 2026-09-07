@@ -114,12 +114,24 @@
 
                     <!-- Input Area -->
                     <div class="chat-input-area">
-                        <form id="chat-form" class="d-flex gap-3 align-items-end">
+                        <!-- Image Preview Container -->
+                        <div id="image-preview-container" class="d-none mb-2 position-relative" style="display: inline-block;">
+                            <img id="image-preview" src="" alt="Vista previa" style="max-height: 80px; border-radius: 10px; border: 2px solid var(--border-color);">
+                            <button type="button" class="btn btn-sm btn-danger position-absolute top-0 start-100 translate-middle rounded-circle" style="width: 24px; height: 24px; padding: 0; line-height: 1;" onclick="removeImage()">
+                                <i class="bi bi-x"></i>
+                            </button>
+                        </div>
+                        
+                        <form id="chat-form" class="d-flex gap-2 align-items-end">
+                            <input type="file" id="chat-image-input" accept="image/*" class="d-none" onchange="handleImageSelect(event)">
+                            <button type="button" class="btn btn-outline-secondary" style="border-radius: 50%; width: 50px; height: 50px; flex-shrink: 0;" onclick="document.getElementById('chat-image-input').click()" title="Subir foto del cultivo">
+                                <i class="bi bi-camera-fill fs-5"></i>
+                            </button>
                             <div class="flex-grow-1">
-                                <textarea class="form-control" id="chat-input" rows="1" placeholder="Escribe tu consulta agrícola aquí..." style="resize: none; border-radius: 20px; overflow-y: hidden;"></textarea>
+                                <textarea class="form-control" id="chat-input" rows="1" placeholder="Escribe tu consulta o sube una foto de tu cultivo..." style="resize: none; border-radius: 20px; overflow-y: hidden;"></textarea>
                             </div>
                             <button type="submit" class="btn btn-agro-primary" style="border-radius: 50%; width: 50px; height: 50px; padding: 0; display: flex; align-items: center; justify-content: center; flex-shrink: 0;" id="send-btn">
-                                <i class="bi bi-send-fill"></i>
+                                <i class="bi bi-send-fill fs-5"></i>
                             </button>
                         </form>
                     </div>
@@ -142,15 +154,16 @@
                         <label class="form-label fw-bold text-success">Selección de Arquitectura</label>
                         <select id="model-select" class="form-control" style="background: rgba(0,0,0,0.2); color: var(--text-main); border: 1px solid var(--border-color);">
                             <optgroup label="⚡ FAST (1-10)">
-                                <option value="google/gemini-2.0-flash-001">Gemini 2.5 Flash</option>
+                                <option value="openrouter/free">⚡ Automático (Evaluación Rápida)</option>
+                                <option value="openrouter/free">Gemini 2.5 Flash</option>
                                 <option value="deepseek/deepseek-chat">DeepSeek V3</option>
                                 <option value="meta-llama/llama-3.1-8b-instruct">Perplexity Sonar</option>
                                 <option value="meta-llama/llama-3.1-8b-instruct">Llama 3.1 8B</option>
-                                <option value="google/gemini-2.0-flash-001">Kimi K2.5</option>
+                                <option value="openrouter/free">Kimi K2.5</option>
                                 <option value="openai/gpt-4o-mini">Grok Code Fast</option>
                                 <option value="meta-llama/llama-3.1-8b-instruct">MiMo-V2 Flash</option>
                                 <option value="meta-llama/llama-3.1-8b-instruct">GPT-OSS 20B</option>
-                                <option value="google/gemini-2.0-flash-001">Step 3.5 Flash</option>
+                                <option value="openrouter/free">Step 3.5 Flash</option>
                                 <option value="meta-llama/llama-3.1-8b-instruct">Nemotron 3 Nano 30B A3B</option>
                             </optgroup>
                             <optgroup label="🎯 +STANDARD (11-24)">
@@ -159,25 +172,25 @@
                                 <option value="deepseek/deepseek-chat">DeepSeek V3.2</option>
                                 <option value="deepseek/deepseek-chat">Hermes 3 70B</option>
                                 <option value="openai/gpt-4o-mini">GPT-4o</option>
-                                <option value="google/gemini-2.0-flash-001">Gemini 2.5 Pro</option>
+                                <option value="openrouter/free">Gemini 2.5 Pro</option>
                                 <option value="anthropic/claude-3.5-haiku">Claude Sonnet 4</option>
                                 <option value="anthropic/claude-3.5-haiku">Claude Sonnet 4.6</option>
                                 <option value="meta-llama/llama-3.1-8b-instruct">Mixtral 8x22B</option>
                                 <option value="deepseek/deepseek-chat">Llama 3.3 70B</option>
                                 <option value="deepseek/deepseek-chat">Qwen 2.5 72B</option>
                                 <option value="deepseek/deepseek-chat">Hermes 4 70B</option>
-                                <option value="google/gemini-2.0-flash-001">GLM-5 Turbo</option>
+                                <option value="openrouter/free">GLM-5 Turbo</option>
                                 <option value="meta-llama/llama-3.1-8b-instruct">Mistral Medium 3.1</option>
                             </optgroup>
                             <optgroup label="🧠 +SMART (25-38)">
-                                <option value="google/gemini-2.0-flash-001">Gemma 3 27B</option>
+                                <option value="openrouter/free">Gemma 3 27B</option>
                                 <option value="openai/gpt-4o-mini">GPT-5</option>
                                 <option value="openai/gpt-4o-mini">GPT-5.4 Chat</option>
                                 <option value="deepseek/deepseek-chat">Qwen 3.5 Plus</option>
                                 <option value="openai/gpt-4o-mini">GLM-5</option>
                                 <option value="openai/gpt-4o-mini">GPT-5.2</option>
-                                <option value="google/gemini-2.0-flash-001">Gemini 3 Pro</option>
-                                <option value="google/gemini-2.0-flash-001">Gemini 3.1 Pro</option>
+                                <option value="openrouter/free">Gemini 3 Pro</option>
+                                <option value="openrouter/free">Gemini 3.1 Pro</option>
                                 <option value="anthropic/claude-3.5-haiku">Claude Opus 4.6</option>
                                 <option value="deepseek/deepseek-chat">GPT-OSS 120B</option>
                                 <option value="deepseek/deepseek-chat">DeepSeek R1</option>
@@ -192,10 +205,10 @@
                                 <option value="deepseek/deepseek-chat">Llama 4 Maverick</option>
                                 <option value="deepseek/deepseek-chat">Qwen3 235B</option>
                                 <option value="deepseek/deepseek-chat">Qwen3 Coder 480B</option>
-                                <option value="google/gemini-2.0-flash-001">MiniMax M2.5</option>
-                                <option value="google/gemini-2.0-flash-001">MiMo-V2 Pro</option>
+                                <option value="openrouter/free">MiniMax M2.5</option>
+                                <option value="openrouter/free">MiMo-V2 Pro</option>
                                 <option value="meta-llama/llama-3.1-8b-instruct">Mistral Large 3</option>
-                                <option value="google/gemini-2.0-flash-001">Gemini 3 Flash</option>
+                                <option value="openrouter/free">Gemini 3 Flash</option>
                                 <option value="deepseek/deepseek-chat">Kimi K2</option>
                             </optgroup>
                             <optgroup label="🔱 +ULTRA (50-55)">

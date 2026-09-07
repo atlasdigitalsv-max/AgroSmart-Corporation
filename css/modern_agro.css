@@ -380,23 +380,23 @@ body {
 .auth-card::before, .agro-card::before, .crop-card::before {
     content: '';
     position: absolute;
-    top: 0; left: -100%;
-    width: 50%; height: 100%;
-    background: linear-gradient(to right, transparent, rgba(255,255,255,0.4), transparent);
-    transform: skewX(-25deg);
-    transition: all 0.7s ease;
+    top: -50%; left: -50%;
+    width: 200%; height: 200%;
+    background: radial-gradient(circle at var(--mouse-x, 50%) var(--mouse-y, 50%), rgba(255, 255, 255, 0.4) 0%, transparent 50%);
+    opacity: 0;
+    transition: opacity 0.3s ease;
     z-index: 1;
     pointer-events: none;
 }
 
 .auth-card:hover::before, .agro-card:hover::before, .crop-card:hover::before {
-    left: 200%;
+    opacity: 1;
 }
 
 .auth-card:hover, .agro-card:hover, .detail-card:hover, .admin-card:hover, .crop-card:hover, .weather-widget:hover, .team-member:hover {
-    transform: translateY(-8px) scale(1.01);
+    transform: translateY(-8px) scale(1.02);
     box-shadow: var(--box-shadow-hover);
-    border-color: rgba(255, 255, 255, 1);
+    border-color: rgba(16, 185, 129, 0.5); /* Emerald border on hover */
 }
 
 /* Dashboard crop cards: hacen más legible la fecha / texto sobre fondo oscuro */
@@ -2581,4 +2581,134 @@ body.sidebar-collapsed.page-body {
     -webkit-backdrop-filter: blur(25px);
     border: 1px solid rgba(255, 255, 255, 0.3);
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+}
+
+/* ========================================================= */
+/* PREMIUM SCROLLBARS & SELECTION */
+/* ========================================================= */
+
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: rgba(241, 245, 249, 0.5); /* Slate 100 with opacity */
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: rgba(148, 163, 184, 0.5); /* Slate 400 with opacity */
+    border-radius: 4px;
+    transition: background 0.3s ease;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--agro-primary);
+}
+
+::selection {
+    background: var(--agro-primary);
+    color: white;
+}
+
+/* ========================================================= */
+/* PAGE TRANSITIONS (SPA FEEL) */
+/* ========================================================= */
+
+body {
+    opacity: 0;
+    animation: pageEnter 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes pageEnter {
+    0% {
+        opacity: 0;
+    }
+    100% {
+        opacity: 1;
+    }
+}
+
+.page-exiting {
+    animation: pageExit 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
+}
+
+@keyframes pageExit {
+    0% {
+        opacity: 1;
+    }
+    100% {
+        opacity: 0;
+    }
+}
+
+/* ========================================================= */
+/* AI FLOATING ORB (JARVIS) */
+/* ========================================================= */
+.ai-floating-orb {
+    position: fixed;
+    bottom: 30px;
+    right: 30px;
+    width: 65px;
+    height: 65px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    box-shadow: 0 0 20px rgba(16, 185, 129, 0.4), inset 0 0 10px rgba(255,255,255,0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 28px;
+    cursor: pointer;
+    z-index: 10000;
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    animation: orbFloat 4s ease-in-out infinite, orbPulse 2s ease-in-out infinite alternate;
+}
+
+.ai-floating-orb:hover {
+    transform: scale(1.1) translateY(-5px);
+    box-shadow: 0 0 30px rgba(16, 185, 129, 0.6), inset 0 0 15px rgba(255,255,255,0.8);
+}
+
+@keyframes orbFloat {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-8px); }
+}
+
+@keyframes orbPulse {
+    0% { filter: brightness(1); }
+    100% { filter: brightness(1.2); }
+}
+
+/* ========================================================= */
+/* NAVBAR SIDEBAR TOOLTIPS (Desktop Collapsed Mode) */
+/* ========================================================= */
+.navbar-menu a {
+    position: relative;
+}
+
+.navbar.collapsed .navbar-menu a::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    left: 100%;
+    top: 50%;
+    transform: translateY(-50%) translateX(10px);
+    background: #0f172a;
+    color: white;
+    padding: 6px 12px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    z-index: 99999;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+}
+
+.navbar.collapsed .navbar-menu a:hover::after {
+    opacity: 1;
+    transform: translateY(-50%) translateX(15px);
 }

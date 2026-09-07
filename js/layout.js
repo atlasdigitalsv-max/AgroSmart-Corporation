@@ -8,40 +8,7 @@ if (typeof document !== 'undefined' && !document.querySelector('link[rel="icon"]
     } catch(e) {}
 }
 
-// Universal Console & Promise Error Silencer for Clean 0-Error Experience
-window.addEventListener('unhandledrejection', function(event) {
-    if (event && event.reason) {
-        const msg = event.reason.message || String(event.reason);
-        if (msg.includes('Failed to fetch') || msg.includes('NetworkError') || msg.includes('Load failed') || msg.includes('offline') || msg.includes('Supabase') || msg.includes('net::ERR_') || msg.includes('ERR_CONNECTION')) {
-            event.preventDefault();
-        }
-    }
-});
-window.addEventListener('error', function(event) {
-    if (event && (event.message || event.target)) {
-        const msg = event.message || '';
-        if (msg.includes('Script error') || msg.includes('Failed to fetch') || msg.includes('NetworkError') || msg.includes('net::ERR_') || (event.target && (event.target.tagName === 'IMG' || event.target.tagName === 'SCRIPT'))) {
-            event.preventDefault();
-        }
-    }
-}, true);
-
-const origConsoleError = console.error;
-console.error = function(...args) {
-    const msg = typeof args[0] === 'string' ? args[0] : args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ');
-    if (msg.includes('An error occurred in') || msg.includes('Failed to obtain') || msg.includes('Request has failed') || msg.includes('Failed to fetch') || msg.includes('NetworkError') || msg.includes('net::ERR_') || msg.includes('ERR_CONNECTION') || msg.includes('404') || msg.includes('Supabase') || msg.includes('offline')) {
-        return; // Silenciado para mantener consola 0 errores
-    }
-    origConsoleError.apply(console, args);
-};
-const origConsoleWarn = console.warn;
-console.warn = function(...args) {
-    const msg = typeof args[0] === 'string' ? args[0] : args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ');
-    if (msg.includes('Fallback') || msg.includes('Offline') || msg.includes('Failed to fetch') || msg.includes('Supabase warning') || msg.includes('Mismatch') || msg.includes('CONFIG not found')) {
-        return; // Silenciado para mantener consola limpia
-    }
-    origConsoleWarn.apply(console, args);
-};
+// Native error handling relies on proper code execution rather than masking
 
 function getSavedTheme() {
     return 'light';
@@ -593,6 +560,22 @@ window.initLayout = async function(activePage = null) {
     } else if (window.initJarvis) {
         window.initJarvis();
     }
+
+    // SPA-like Page Transitions Hijack
+    document.querySelectorAll('a[href]').forEach(link => {
+        if (link.hostname === window.location.hostname && 
+            link.getAttribute('href') && 
+            !link.getAttribute('href').startsWith('#') &&
+            link.getAttribute('target') !== '_blank' &&
+            !link.hasAttribute('onclick')) {
+            link.addEventListener('click', function(e) {
+                e.preventDefault();
+                const target = this.href;
+                document.body.classList.add('page-exiting');
+                setTimeout(() => window.location.href = target, 350);
+            });
+        }
+    });
 };
 
 window.confirmActionModal = async function(title, text, confirmText = 'Sí, continuar', cancelText = 'Cancelar') {
@@ -781,3 +764,14 @@ if (typeof navigator !== 'undefined' && !navigator.onLine) {
         showOfflineBanner();
     }
 }
+
+// Mouse tracker for dynamic glassmorphism lighting effect
+document.addEventListener('mousemove', e => {
+    document.querySelectorAll('.auth-card, .agro-card, .crop-card, .detail-card, .admin-card, .weather-widget, .team-member').forEach(card => {
+        const rect = card.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        card.style.setProperty('--mouse-x', `${x}px`);
+        card.style.setProperty('--mouse-y', `${y}px`);
+    });
+});
