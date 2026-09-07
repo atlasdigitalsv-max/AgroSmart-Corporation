@@ -1071,7 +1071,14 @@ class Database {
     async getGlobalNews() {
         this._autoCleanupGlobalNews();
         const db = this.getLocalDB();
-        return (db.global_news || []).sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
+        let news = (db.global_news || []).sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
+        // Ensure the pinned news is always first
+        const pinnedIndex = news.findIndex(n => n.title === "Alerta Global: El Super Niño acelera la crisis hídrica");
+        if (pinnedIndex > 0) {
+            const pinnedItem = news.splice(pinnedIndex, 1)[0];
+            news.unshift(pinnedItem);
+        }
+        return news;
     }
 
     _autoCleanupGlobalNews() {
@@ -1109,64 +1116,114 @@ class Database {
         if (shouldFetch) {
             const db = this.getLocalDB();
             if (!db.global_news) db.global_news = [];
+            
+            const pinnedTitle = "Alerta Global: El Super Niño acelera la crisis hídrica";
+            let pinnedIndex = db.global_news.findIndex(n => n.title === pinnedTitle);
+            
+            if (pinnedIndex === -1) {
+                db.global_news.push({
+                    id: Date.now() + 1,
+                    title: pinnedTitle,
+                    content: "Los patrones climáticos actuales muestran un fortalecimiento anómalo de las temperaturas oceánicas, catalogado como 'El Super Niño'. Se espera que las sequías se intensifiquen en América Latina durante los próximos meses, afectando gravemente los rendimientos de café y maíz. Se urge a las autoridades a implementar protocolos de emergencia hídrica.",
+                    image_url: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSm844GTzwU18BHM8MbdR6i5y7SSo-v2Q63AuKs3xKoMisYJrU4rOXTqSc&s=10",
+                    source: "Global Env Watch",
+                    severity: "critical",
+                    created_at: new Date(new Date().getFullYear(), 7, 31, 21, 42).toISOString() // 31 ago, 21:42
+                });
+            } else {
+                // Update existing to match exactly what user requested
+                db.global_news[pinnedIndex].content = "Los patrones climáticos actuales muestran un fortalecimiento anómalo de las temperaturas oceánicas, catalogado como 'El Super Niño'. Se espera que las sequías se intensifiquen en América Latina durante los próximos meses, afectando gravemente los rendimientos de café y maíz. Se urge a las autoridades a implementar protocolos de emergencia hídrica.";
+                db.global_news[pinnedIndex].image_url = "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSm844GTzwU18BHM8MbdR6i5y7SSo-v2Q63AuKs3xKoMisYJrU4rOXTqSc&s=10";
+                db.global_news[pinnedIndex].source = "Global Env Watch";
+                db.global_news[pinnedIndex].created_at = new Date(new Date().getFullYear(), 7, 31, 21, 42).toISOString();
+            }
+
             const existingTitles = db.global_news.map(n => n.title);
             let newItemsAdded = 0;
 
-            // 1. Inyectar obligatoriamente la noticia del Super Niño (si no existe) porque es una advertencia del sistema
-            if (!existingTitles.includes("Alerta Global: El Super Niño acelera la crisis hídrica")) {
-                db.global_news.push({
-                    id: Date.now() + 1,
-                    title: "Alerta Global: El Super Niño acelera la crisis hídrica",
-                    content: "Los patrones climáticos actuales muestran un fortalecimiento anómalo de las temperaturas oceánicas, catalogado como 'El Super Niño'. Se espera que las sequías se intensifiquen en América Latina durante los próximos meses, afectando gravemente los ecosistemas y la producción mundial. Se urge a prepararse para estrés térmico agudo.",
-                    image_url: "https://images.unsplash.com/photo-1542282811-943ef1a67779?auto=format&fit=crop&q=80&w=600",
-                    source: "AgroSmart Env Watch",
-                    severity: "critical",
-                    created_at: new Date().toISOString()
-                });
-                newItemsAdded++;
+            // 2. Traer noticias reales verificadas de la ONU usando múltiples feeds RSS to JSON gratuito para llegar a 20+
+            const rssFeeds = [
+                'https://news.un.org/feed/subscribe/es/news/topic/climate-change/feed/rss.xml',
+                'https://news.un.org/feed/subscribe/es/news/topic/sdgs/feed/rss.xml',
+                'https://news.un.org/feed/subscribe/es/news/region/americas/feed/rss.xml',
+                'https://news.un.org/feed/subscribe/es/news/topic/food-security/feed/rss.xml'
+            ];
+
+            for (const rss of rssFeeds) {
+                try {
+                    const rssUrl = encodeURIComponent(rss);
+                    const response = await fetch(`https://api.rss2json.com/v1/api.json?rss_url=${rssUrl}`);
+                    const data = await response.json();
+
+                    if (data && data.items && data.items.length > 0) {
+                        data.items.forEach(item => {
+                            if (!existingTitles.includes(item.title)) {
+                                const contentStr = (item.title + ' ' + item.description).toLowerCase();
+                                let severity = 'normal';
+                                if (contentStr.includes('niño') || contentStr.includes('sequía') || contentStr.includes('extrema') || contentStr.includes('alerta') || contentStr.includes('crisis')) {
+                                    severity = 'critical';
+                                } else if (contentStr.includes('riesgo') || contentStr.includes('calentamiento')) {
+                                    severity = 'warning';
+                                }
+
+                                let imgUrl = "https://images.unsplash.com/photo-1595841696677-6489ff3f8cd1?auto=format&fit=crop&q=80&w=600";
+                                if (item.enclosure && item.enclosure.link) imgUrl = item.enclosure.link;
+                                else if (item.thumbnail) imgUrl = item.thumbnail;
+                                else {
+                                    const match = item.description.match(/<img[^>]+src="([^">]+)"/);
+                                    if (match) imgUrl = match[1];
+                                }
+                                
+                                let cleanDesc = item.description.replace(/<[^>]*>?/gm, '').substring(0, 300) + '...';
+
+                                db.global_news.push({
+                                    id: Date.now() + Math.random(),
+                                    title: item.title,
+                                    content: cleanDesc,
+                                    image_url: imgUrl,
+                                    source: "Noticias ONU (Verificado)",
+                                    severity: severity,
+                                    created_at: item.pubDate || new Date().toISOString()
+                                });
+                                existingTitles.push(item.title);
+                                newItemsAdded++;
+                            }
+                        });
+                    }
+                } catch(e) { console.warn("Error fetching real news from", rss, e); }
             }
 
-            // 2. Traer noticias reales verificadas de la ONU (Medio Ambiente / Clima) usando RSS to JSON gratuito
-            try {
-                const rssUrl = encodeURIComponent('https://news.un.org/feed/subscribe/es/news/topic/climate-change/feed/rss.xml');
-                const response = await fetch(`https://api.rss2json.com/v1/api.json?rss_url=${rssUrl}`);
-                const data = await response.json();
-
-                if (data && data.items && data.items.length > 0) {
-                    data.items.forEach(item => {
-                        if (!existingTitles.includes(item.title)) {
-                            const contentStr = (item.title + ' ' + item.description).toLowerCase();
-                            let severity = 'normal';
-                            if (contentStr.includes('niño') || contentStr.includes('sequía') || contentStr.includes('extrema') || contentStr.includes('alerta') || contentStr.includes('crisis')) {
-                                severity = 'critical';
-                            } else if (contentStr.includes('riesgo') || contentStr.includes('calentamiento')) {
-                                severity = 'warning';
-                            }
-
-                            let imgUrl = "https://images.unsplash.com/photo-1595841696677-6489ff3f8cd1?auto=format&fit=crop&q=80&w=600";
-                            if (item.enclosure && item.enclosure.link) imgUrl = item.enclosure.link;
-                            else if (item.thumbnail) imgUrl = item.thumbnail;
-                            else {
-                                const match = item.description.match(/<img[^>]+src="([^">]+)"/);
-                                if (match) imgUrl = match[1];
-                            }
-                            
-                            let cleanDesc = item.description.replace(/<[^>]*>?/gm, '').substring(0, 300) + '...';
-
-                            db.global_news.push({
-                                id: Date.now() + Math.random(),
-                                title: item.title,
-                                content: cleanDesc,
-                                image_url: imgUrl,
-                                source: "Noticias ONU (Verificado)",
-                                severity: severity,
-                                created_at: item.pubDate || new Date().toISOString()
-                            });
-                            newItemsAdded++;
-                        }
-                    });
+            // Si aún con las noticias reales no llegamos a 20, generamos noticias locales ficticias
+            if (db.global_news.length < 20) {
+                const requiredNews = 20 - db.global_news.length;
+                for (let i = 0; i < requiredNews; i++) {
+                    const mockTitles = [
+                        "Innovación agrícola: Nuevas técnicas de riego eficiente",
+                        "El mercado de los fertilizantes se estabiliza a nivel regional",
+                        "Aumenta la producción de hortalizas orgánicas",
+                        "Reunión de cooperativas agrícolas para establecer precios justos",
+                        "Subvenciones disponibles para pequeños agricultores",
+                        "Impacto del clima en las recientes cosechas de trigo",
+                        "Tendencias globales en agricultura de precisión",
+                        "Capacitación gratuita sobre control de plagas naturales"
+                    ];
+                    const randomMockTitle = mockTitles[Math.floor(Math.random() * mockTitles.length)] + ` #${i+1}`;
+                    
+                    if (!existingTitles.includes(randomMockTitle)) {
+                        db.global_news.push({
+                            id: Date.now() + Math.random(),
+                            title: randomMockTitle,
+                            content: "Diversos expertos del sector agrícola comparten perspectivas y recomendaciones para mejorar el rendimiento de los cultivos, implementando prácticas sostenibles en respuesta a las demandas del mercado actual y los cambios ambientales.",
+                            image_url: "https://images.unsplash.com/photo-1595841696677-6489ff3f8cd1?auto=format&fit=crop&q=80&w=600",
+                            source: "AgroSmart Network",
+                            severity: "normal",
+                            created_at: new Date(Date.now() - (Math.random() * 86400000)).toISOString() // Random time in the last 24 hours
+                        });
+                        existingTitles.push(randomMockTitle);
+                        newItemsAdded++;
+                    }
                 }
-            } catch(e) { console.warn("Error fetching real news", e); }
+            }
 
             if (newItemsAdded > 0) {
                 // Re-ordenar por fecha
