@@ -30,7 +30,6 @@ class JarvisCore {
         
         this.userName = "Usuario";
         this.userRole = "Desconocido";
-        this.fetchUserName();
 
         this.initRecognition();
         this.createWidget();
@@ -936,10 +935,12 @@ window.initJarvis = async function() {
         if (speechSynthesis.getVoices().length === 0) {
             speechSynthesis.addEventListener('voiceschanged', () => {
                 window.JarvisInstance = new JarvisCore();
+                window.JarvisInstance.fetchUserName();
                 window.JarvisInstance.start();
             }, { once: true });
         } else {
             window.JarvisInstance = new JarvisCore();
+            window.JarvisInstance.fetchUserName();
             window.JarvisInstance.start();
         }
     }
